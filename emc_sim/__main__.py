@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from emc_sim import options, simulations, utils
@@ -8,12 +7,13 @@ import multiprocessing as mp
 import time
 from itertools import chain
 import pprint
+logging.getLogger('matplotlib.font_manager').disabled = True
 
 
 def simulate_single(
         simParams: options.SimulationParameters,
         simData: options.SimulationData,
-        save: bool = False):
+        save: bool = False) -> (pd.DataFrame, options.SimulationParameters):
 
     param_list = simParams.settings.get_complete_param_list()
     emcAmplitude_resultlist = []
@@ -47,15 +47,13 @@ def simulate_multi(
     # ---- using multiprocessing ---
 
     print("cpu number: {}".format(simParams.config.mpNumCpus))
-    logging.warning(f'projected time: '
-                    f'{simData.time * simParams.settings.total_num_sim / 360 / simParams.config.mpNumCpus:.2f} h')
+    logging.info(f'projected time: '
+                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h')
 
     # divide lists in as many parts as we have processes available (cpus)
     param_list = simParams.settings.get_complete_param_list()
     mp_lists = [(simParams, simData, param_list[i::simParams.config.mpNumCpus])
                 for i in range(simParams.config.mpNumCpus)]
-
-    logging.basicConfig(level="INFO")
 
     start = time.time()
 
@@ -67,7 +65,7 @@ def simulate_multi(
 
     end = time.time()
 
-    logging.warning(f'Finished simulation! Total time: {((end - start) / 3600):.2} h')
+    logging.info(f'Finished simulation! Total time: {((end - start) / 3600):.2} h')
     # df = pd.DataFrame(results)
 
     if save:
@@ -77,7 +75,7 @@ def simulate_multi(
         simParams.save(path.joinpath("SimulationConfiguration.json"), indent=2, separators=(',', ':'))
 
 
-def wrapSimulateForMP(args):
+def wrapSimulateForMP(args) -> list:
     """
     When using multiprocessing we want to distribute lists of single run parameters to multiple processes.
     """
@@ -98,15 +96,16 @@ def main():
     """
     parser, prog_args = options.createCommandlineParser()
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(message)s',
+                        datefmt='%I:%M:%S', level=logging.DEBUG)
     logging.info("starting simulation")
-    logging.warning("___ sequence dependent configuration of timing and pulses! ___")
+    logging.info("___ sequence dependent configuration of timing and pulses! ___")
 
     simParams = options.SimulationParameters.from_cmd_args(prog_args)
     simData = options.SimulationData.from_cmd_args(prog_args)
 
     logging.info("Configuration")
-    pprint.pprint(simParams.to_dict())
+    logging.debug(pprint.pformat(simParams.to_dict()))
     try:
         if simParams.config.multiprocessing:
             simulate_multi(simParams, simData)

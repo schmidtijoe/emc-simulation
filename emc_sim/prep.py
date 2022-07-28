@@ -178,7 +178,7 @@ def buildFillTiming_se(simParams: SimulationParameters):
     For SE sequence
     :return: timing array
     """
-    logging.warning('timing function - sequence scheme dependent!')
+    logging.info('timing function - sequence scheme dependent!')
     # all in [us]
     arrayTime = np.zeros(2)
 

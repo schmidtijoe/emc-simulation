@@ -16,7 +16,7 @@ def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
     pax = givenAx.twinx()
     axLimit = 1.2 * np.max(np.abs(gradientArray))
     givenAx.set_ylim(-axLimit, axLimit)
-    paxLimit = 1.25 * np.max(np.abs(pulseArray))
+    paxLimit = np.max([1e-9, 1.25 * np.max(np.abs(pulseArray))])
     pax.set_ylim(-paxLimit, paxLimit)
 
     # tweaking grad
@@ -57,7 +57,7 @@ def visualizeAllGradientPulses(gpDict: dict):
     Plot individual pulse - gradient profiles
     NEEDS gpList to be a List of dictionaries with specific entries from pulse-preparation module
 
-    :param gpList: list of g-p dictionaries per echo train
+    :param gpDict: dict of g-p dictionaries per echo train
     :return: plot
     """
     plt.style.use('ggplot')

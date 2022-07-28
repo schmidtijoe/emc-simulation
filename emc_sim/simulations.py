@@ -5,6 +5,7 @@ from emc_sim import functions
 from emc_sim import prep
 from emc_sim import plotting
 import time
+logModule = logging.getLogger(__name__)
 
 
 def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (SimulationData, SimulationParameters):
@@ -24,7 +25,7 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
     tempData.run = simData
 
     # ----- defining pulses ----- #
-    logging.debug('Pulse preparation - Timing')
+    logModule.debug('Pulse preparation - Timing')
     GradientPulseData = prep.gradientPulsePreparation(simParams=simParams, simTempData=tempData)
 
     # ----- setup timing ----- #
@@ -32,14 +33,14 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
 
     # visualize
     if simParams.config.visualize:
-        logging.debug('Visualization ON - Turn off when processing multiple instances!')
+        logModule.debug('Visualization ON - Turn off when processing multiple instances!')
         plotting.visualizeAllGradientPulses(GradientPulseData)
         plotting.visualizeSequenceScheme(GradientPulseData, arrayTiming, simParams)
+        simParams.config.visualize = False
 
     # ----- Starting Calculations ----- #
-    logging.debug('Simulation main calculation')
+    logModule.debug('Simulation main calculation')
 
-    logging.debug('propagating excitation pulse')
     tempData = functions.propagateGradientPulseTime(
         dictGradPulse=GradientPulseData["excitation"],
         simParams=simParams,
@@ -47,28 +48,24 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
     )
 
     # first refocus is different
-    logging.debug('fill time before pulse')
     tempData = functions.propagateRelaxation(
         deltaT=arrayTiming[0, 0],
         simTempData=tempData,
         simParams=simParams
     )
 
-    logging.debug('apply pulse')
     tempData = functions.propagateGradientPulseTime(
         dictGradPulse=GradientPulseData["refocus_1"],
         simParams=simParams,
         simTempData=tempData
     )
 
-    logging.debug('fill time after pulse')
     tempData = functions.propagateRelaxation(
         deltaT=arrayTiming[0, 1],
         simParams=simParams,
         simTempData=tempData
     )
 
-    logging.debug('acquisition')
     for acqIdx in range(simParams.settings.acquisitionNumber):
         tempData = functions.propagateGradientPulseTime(
             dictGradPulse=GradientPulseData["acquisition"],
@@ -84,30 +81,26 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
 
     # ----- refocusing loop - echo train -----
     for loopIdx in np.arange(1, simParams.sequence.ETL):
-        logging.debug(f'run {loopIdx + 1}')
+        logModule.debug(f'run {loopIdx + 1}')
 
-        logging.debug('fill time before pulse')
         tempData = functions.propagateRelaxation(
             deltaT=arrayTiming[loopIdx, 0],
             simTempData=tempData,
             simParams=simParams
         )
 
-        logging.debug('apply pulse')
         tempData = functions.propagateGradientPulseTime(
             dictGradPulse=GradientPulseData["refocus"],
             simParams=simParams,
             simTempData=tempData
         )
 
-        logging.debug('fill time after pulse')
         tempData = functions.propagateRelaxation(
             deltaT=arrayTiming[loopIdx, 1],
             simTempData=tempData,
             simParams=simParams
         )
 
-        logging.debug('acquisition')
         for acqIdx in range(simParams.settings.acquisitionNumber):
             tempData = functions.propagateGradientPulseTime(
                 dictGradPulse=GradientPulseData["acquisition"],
@@ -123,7 +116,7 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
 
     # ----- finished loop -----
 
-    logging.debug('Signal array processing fourier')
+    logModule.debug('Signal array processing fourier')
     imageArray = np.fft.fftshift(np.fft.fft(np.fft.fftshift(tempData.signalArray)))
     simData.emcSignal = 2 * np.sum(np.abs(imageArray), axis=1) / simParams.settings.acquisitionNumber
     # factor 2 not necessary, stems from Noams version, ultimately want some normalization here!
