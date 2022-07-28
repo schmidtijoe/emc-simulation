@@ -52,7 +52,7 @@ def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
     pax.legend(lines + lines2, labels + labels2, loc=0)
 
 
-def visualizeAllGradientPulses(gpDict):
+def visualizeAllGradientPulses(gpDict: dict):
     """
     Plot individual pulse - gradient profiles
     NEEDS gpList to be a List of dictionaries with specific entries from pulse-preparation module
@@ -103,15 +103,19 @@ def visualizePulseProfile(array_mags, phase=False):
     return
 
 
-def visualizeSequenceScheme(gpList, timingArr, simParams: SimulationParameters):
-    yGrad = gpList[0]['gradientData']
-    yPulse = gpList[0]['pulseData']
+def visualizeSequenceScheme(gpDict: dict, timingArr: np.ndarray, simParams: SimulationParameters):
+    yGrad = gpDict['excitation']['gradientData']
+    yPulse = gpDict['excitation']['pulseData']
     for idx in range(simParams.sequence.ETL):
+        if idx == 0:
+            identifier = 'refocus_1'
+        else:
+            identifier = 'refocus'
         yGrad = np.concatenate(
             (yGrad, np.zeros(int(timingArr[idx, 0] / 5))))  # divide by 5us to get rough no of sampling pts
         yPulse = np.concatenate((yPulse, np.zeros(int(timingArr[idx, 0] / 5))))
-        yGrad = np.concatenate((yGrad, gpList[idx + 1]['gradientData']))
-        yPulse = np.concatenate((yPulse, gpList[idx + 1]['pulseData']))
+        yGrad = np.concatenate((yGrad, gpDict[identifier]['gradientData']))
+        yPulse = np.concatenate((yPulse, gpDict[identifier]['pulseData']))
         yGrad = np.concatenate((yGrad, np.zeros(int(timingArr[idx, 1] / 5))))
         yPulse = np.concatenate((yPulse, np.zeros(int(timingArr[idx, 1] / 5))))
         yGrad = np.concatenate((yGrad, - np.linspace(simParams.sequence.gradientAcquisition, simParams.sequence.gradientAcquisition,

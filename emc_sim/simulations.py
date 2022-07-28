@@ -7,7 +7,7 @@ from emc_sim import plotting
 import time
 
 
-def simulate_mese(simParams: SimulationParameters, simData: SimulationData):
+def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (SimulationData, SimulationParameters):
     """
     For a single combination of T1, T2 and B1 value the sequence response is simulated iteratively,
     depending on the sequence scheme.
@@ -129,5 +129,6 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData):
     # factor 2 not necessary, stems from Noams version, ultimately want some normalization here!
     simData.time = time.time() - t_start
 
-    np.save(f"mag_prop.npy", tempData.magnetizationPropagation)
+    # for debugging
+    # np.save(f"mag_prop.npy", tempData.magnetizationPropagation)
     return simData, simParams

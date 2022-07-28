@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from simple_parsing import Serializable, ArgumentParser, choice
 from simple_parsing.helpers.serialization import register_decoding_fn, encode
 import multiprocessing as mp
-from typing import List, Tuple
+from typing import List
 import logging
 logModule = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class SimulationConfig(Serializable):
     pulseFileExcitation: str = 'gauss_shape.txt'
     pulseFileRefocus: str = 'gauss_shape.txt'
 
-    visualize: bool = False  # visualize different checkpoints
+    visualize: bool = True  # visualize different checkpoints
     d_flag: bool = False  # toggle diffusion calculations
 
     multiprocessing: bool = False

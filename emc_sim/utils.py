@@ -31,7 +31,7 @@ def create_folder_ifn_exist(folder):
         os.makedirs(folder)
 
 
-def normalize_array(data_array, max_factor=1, normalization="max", by_value: float = None):
+def normalize_array(data_array: np.ndarray, max_factor: float = 1.0, normalization: str = "max", by_value: float = None):
     norm = {
         "max": np.max(data_array, keepdims=True, axis=-1),
         "l2": np.linalg.norm(data_array, keepdims=True, axis=-1),
@@ -94,7 +94,7 @@ def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str 
         niiImg = nib.load(path)
         data = np.array(niiImg.get_fdata())
         if normalize == "max":
-            data = normalize_array(data, normalize)
+            data = normalize_array(data_array=data, normalization=normalize)
         if test_set:
             # want data from "middle" of image to not get 0 data for testing
             idx_half = [int(data.shape[k]/2) for k in range(2)]

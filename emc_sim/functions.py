@@ -1,25 +1,26 @@
 import numpy as np
 import logging
 from emc_sim.options import SimulationParameters, SimulationTempData
+from typing import Union
 
 
-def readPulseFile(filename: str):
+def readPulseFile(filename: str) -> (np.ndarray, tuple):
     """
     if pulse profile is provided, read in
     :param filename: name of file (txt or pta) of pulse
     :return: pulse array, pulse length
     """
-    f = open(filename, "r")
-    temp = np.array([x.strip().split('\t') for x in f], dtype=float).transpose()
-    f.close()
+    with open(filename, "r") as f:
+        temp = np.array([x.strip().split('\t') for x in f], dtype=float).transpose()
     pulseShape = temp[0] * np.exp(1j * temp[1])
     return pulseShape, pulseShape.shape[0]
 
 
-def pulseCalibrationIntegral(pulse, deltaT,
+def pulseCalibrationIntegral(pulse: np.ndarray,
+                             deltaT: float,
                              simParams: SimulationParameters,
                              simTempData: SimulationTempData,
-                             phase=0):
+                             phase: float = 0.0) -> np.ndarray:
     """
     Calibrates pulse waveform for given flip angle, adds phase if given
 
@@ -37,14 +38,22 @@ def pulseCalibrationIntegral(pulse, deltaT,
         angleFlip = simParams.sequence.excitationAngle
     else:
         angleFlip = simParams.sequence.refocusAngle
-    angleFlip *= np.pi / 180 * simTempData.run.b1     # calculate with applied actual flip angle offset
+    angleFlip *= np.pi / 180 * simTempData.run.b1  # calculate with applied actual flip angle offset
     b1PulseCalibrated = b1Pulse * (angleFlip / flipAngleNormalizedB1) * np.exp(1j * phase)
     return b1PulseCalibrated
 
 
-def propagateRotationRelaxationDiffusion(ux, uy, uz, mx, my, mz, me, dtInSec,
+def propagateRotationRelaxationDiffusion(ux: Union[np.ndarray, float],
+                                         uy: Union[np.ndarray, float],
+                                         uz: Union[np.ndarray, float],
+                                         mx: Union[np.ndarray, float],
+                                         my: Union[np.ndarray, float],
+                                         mz: Union[np.ndarray, float],
+                                         me: Union[np.ndarray, float],
+                                         dtInSec: float,
                                          simTempData: SimulationTempData,
-                                         phiRadians=0.0, b=0.0):
+                                         phiRadians: float = 0.0,
+                                         b: float = 0.0) -> np.ndarray:
     """
     Calculates the effect of rotation and relaxation matrices without dot and matrix array creation (much quicker
     and memory efficient!) -> iterative computation relies on hard pulse approximation
@@ -81,7 +90,8 @@ def propagateRotationRelaxationDiffusion(ux, uy, uz, mx, my, mz, me, dtInSec,
     ])
 
 
-def toggle_excitation_refocus(simParams: SimulationParameters, simTempData: SimulationTempData):
+def toggle_excitation_refocus(simParams: SimulationParameters, simTempData: SimulationTempData) -> (
+        float, float, float, float, float):
     """ Decide which gradients and durations to take from the dataclass, dependent on grad mode and excitation """
     if simParams.sequence.gradMode == "Verse":
         # verse gradients
@@ -102,7 +112,7 @@ def toggle_excitation_refocus(simParams: SimulationParameters, simTempData: Simu
     else:
         # normal gradient
         if simTempData.excitation_flag:
-            # excitaiton
+            # excitation
             duration = simParams.sequence.durationExcitation
             gradVerse1 = 0
             gradVerse2 = simParams.sequence.gradientExcitation
@@ -120,8 +130,10 @@ def toggle_excitation_refocus(simParams: SimulationParameters, simTempData: Simu
     return duration, gradVerse1, durationVerse1, gradVerse2, durationVerse2
 
 
-def buildGradientVerse(amplitudePulse, simParams: SimulationParameters, simTempData: SimulationTempData,
-                       gradCrushRephase, durationCrushRephase, gradPre: float = 0.0, durationPre: float = 0.0):
+def buildGradientVerse(amplitudePulse: np.ndarray, simParams: SimulationParameters, simTempData: SimulationTempData,
+                       gradCrushRephase: float, durationCrushRephase: float,
+                       gradPre: float = 0.0, durationPre: float = 0.0) -> (
+        np.ndarray, np.ndarray, float, float):
     """
     build pulse gradient information array, stepwise values of pulse and gradient amplitudes.
     Prephasers (generally ramp times not required from siemens timing)
@@ -169,10 +181,10 @@ def buildGradientVerse(amplitudePulse, simParams: SimulationParameters, simTempD
     return gradientAmplitude, pulseAmplitude, totalTime, sum(gradientAmplitude[preN:preN + pulseN]) * deltaT
 
 
-def propagateGradientPulseTime(dictGradPulse,
+def propagateGradientPulseTime(dictGradPulse: dict,
                                simParams: SimulationParameters,
                                simTempData: SimulationTempData,
-                               append=True):
+                               append: bool = True):
     """
     calculate effect of pulse and gradient combinations or relaxation only per time step
     on the magnetization vectors of all isochromats spread across the slice (z-direction).
@@ -212,7 +224,8 @@ def propagateGradientPulseTime(dictGradPulse,
         # xyz direction calculated by pulse effect along transverse dirs (xy), and gradient effect along slice (z)
         rotationAxisVector[0] = np.real(pulseT[idxT])
         rotationAxisVector[1] = np.imag(pulseT[idxT])
-        rotationAxisVector[2] = gradT[idxT] * simTempData.sampleAxis * 1e-3  # bz facilitated along z: [mT/m] = 1e-3 [T/m]
+        rotationAxisVector[2] = gradT[
+                                    idxT] * simTempData.sampleAxis * 1e-3  # bz facilitated along z: [mT/m] = 1e-3 [T/m]
         # calculate norm of rotational vector
         normedRotationVectorAngle[0] = np.linalg.norm(rotationAxisVector, axis=0)
         # normalize the original vector
@@ -265,7 +278,7 @@ def propagateRelaxation(deltaT, simTempData: SimulationTempData, simParams: Simu
     tempMagVec = simTempData.magnetizationPropagation[-1].copy()
     tInSec = deltaT * 1e-6
     normalizedRotAxisVector = np.zeros([2, tempMagVec.shape[1]])
-    normalizedRotAxisVector[1] = np.ones(normalizedRotAxisVector.shape[1])      # dummy rotation vector
+    normalizedRotAxisVector[1] = np.ones(normalizedRotAxisVector.shape[1])  # dummy rotation vector
     tempMagVec = propagateRotationRelaxationDiffusion(
         normalizedRotAxisVector[0],
         normalizedRotAxisVector[0],
