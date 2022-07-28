@@ -1,0 +1,13 @@
+name: emc-simulation
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy=1.21
+  - jupyter=1.0.0
+  - matplotlib=3.5.1
+  - pandas=1.4.1
+  - simple-parsing=0.0.19
+  - pathtools=0.1.2
+  - nibabel=3.2.2
