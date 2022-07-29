@@ -1,12 +1,14 @@
 # Example usage
 
 Provided is an exemplary configuration File *SimulationConfiguration.json*,
-with
-```
-python -m emc_sim --configFile /examples/SimulationConfiguration.json
-```
 
-You can run a simulation which would generate 38 curves.
+with
+
+```python -m emc_sim --configFile /examples/SimulationConfiguration.json```
+
+(note: working directory *../emc_simulation/*)
+
+A simulation runs which would generate 38 curves.
 Note the T~2~ values simulated range from 20 - 35 ms. However from 20 - 25 in steps of 0.5 ms. From 25 - 35 in steps of 2 ms. The equivalent definition of this range is given in the config (line 51) via:
 ```
 "t2_list": [ [ 20, 25, 0.1 ], [ 25, 35, 2 ] ],
@@ -30,5 +32,5 @@ for the given gaussian shape pulse
 
 | Sample Initialization         | Excitation Profile          |
 | ---------------------         | ------------------          |
-| ![sample](https://github.com/schmidtijoe/emc-simulation/blob/master/examples/sample_visual.png)  | ![exci](https://github.com/schmidtijoe/emc-simulation/blob/master/examples/profile_visual.png)  |
+| ![sample](./sample_visual.png)  | ![exci](./profile_visual.png)  |
 |    | parameters: B1: 1.0, T2: 0.02  |
