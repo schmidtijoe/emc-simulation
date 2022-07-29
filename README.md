@@ -13,8 +13,7 @@ A Python Adaption of the Echo Modulation Curve Algorithm, a Bloch Simulation bas
 - conda or venv python environment specified by *environment.yml*
 - Sequence specs:
   - pulses & gradients with exakt timings.
-  - Simulation uses hard pulse approximation but is tailored to the sequence parameters.
-  - i.e. IDEA sequence simulation for a siemens scanner measurement is needed
+  - Simulation uses hard pulse approximation but is tailored to the sequence parameters. i.e. IDEA sequence simulation for a siemens scanner measurement is needed
 
 #### How to use
 ###### Command Line Interface:
@@ -35,7 +34,7 @@ python -m emc_sim
 ```
 python -m emc_sim --configFile /path/to/config.json
 ```
-- examplary config:
+- exemplary config:
 ```
 
 ```
