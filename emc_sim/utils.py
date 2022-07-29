@@ -31,7 +31,8 @@ def create_folder_ifn_exist(folder):
         os.makedirs(folder)
 
 
-def normalize_array(data_array: np.ndarray, max_factor: float = 1.0, normalization: str = "max", by_value: float = None):
+def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
+                    normalization: str = "max", by_value: float = None) -> np.ndarray:
     norm = {
         "max": np.max(data_array, keepdims=True, axis=-1),
         "l2": np.linalg.norm(data_array, keepdims=True, axis=-1),
@@ -48,7 +49,7 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0, normalizati
     return max_factor * data_array
 
 
-def load_database(path_to_file, append_zero: bool = True):
+def load_database(path_to_file: str, append_zero: bool = True) -> (pd.DataFrame, np.ndarray):
     # need standardized way of saving the database here
     path = Path(path_to_file).absolute()
     if path.suffix == ".pkl":
@@ -81,7 +82,8 @@ def load_database(path_to_file, append_zero: bool = True):
     return df, sim_data_flat
 
 
-def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str = "max"):
+def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str = "max") -> (
+        np.ndarray, nib.nifti1.Nifti1Image):
     """
     Loads nii data into numpy array. and reshapes to 2d, normalizes
     :param normalize: kind of normalization (area, max)

@@ -6,6 +6,7 @@ import multiprocessing as mp
 from typing import List
 import logging
 logModule = logging.getLogger(__name__)
+from scipy import stats
 
 
 @dataclass
@@ -23,6 +24,15 @@ class SimulationData(Serializable):
         self.b1 = b1
         self.d = d
 
+    def get_run_params(self) -> dict:
+        ret = {
+            "T1": self.t1,
+            "T2": self.t2,
+            "B1": self.b1,
+            "D": self.d
+        }
+        return ret
+
     @classmethod
     def from_cmd_args(cls, args: ArgumentParser.parse_args):
         simData = SimulationData(args.run)
@@ -35,19 +45,31 @@ class SimulationConfig(Serializable):
     """
     Configuration for simulation
     """
+    # provide Configuration file (.json)
     configFile: str = ""
+    # set path to save database and used config
     savePath: str = "./data"
-    saveFile: str = "database_name.pkl"
+    # set filename of database
+    saveFile: str = "database_name.json"
+    # set filepath to external pulse-files
     pathToExternals: str = "./external"
 
+    # name of external pulse file for excitation
     pulseFileExcitation: str = 'gauss_shape.txt'
+    # name of external pulse file for refocussing
     pulseFileRefocus: str = 'gauss_shape.txt'
 
-    visualize: bool = True  # visualize different checkpoints
-    d_flag: bool = False  # toggle diffusion calculations
-
+    # set flag to visualize pulse profiles and sequence scheme
+    visualize: bool = True
+    # toggle diffusion calculations
+    diffusionFlag: bool = False
+    # toggle debugging log
+    debuggingFlag: bool = True
+    # toggle multithreading
     multiprocessing: bool = False
+    # give number of CPUs to leave unused when multiprocessing
     mpHeadroom: int = 16
+    # give desired number of CPUs to use
     mpNumCpus: int = 1
 
     def __post_init__(self):
@@ -64,19 +86,24 @@ class SequenceParams(Serializable):
     """
     Parameters related to Sequence simulation
     """
-    gammaHz: float = 42577478.518  # [Hz/t], global parameter
-    gammaPi: float = gammaHz * 2 * np.pi
+    # global parameter gamma [Hz/t]
+    gammaHz: float = 42577478.518
 
-    ETL: int = 16  # echo train length
-    ESP: float = 9.0  # echo spacing [ms]
-    bw: float = 349  # bandwidth [Hz/px]
-    durationAcquisition: float = 1e6 / bw  # [us] time for acquisition (of one pixel) * 1e6 <- [(px)s] * 1e6
+    # echo train length
+    ETL: int = 16
+    # echo spacing [ms]
+    ESP: float = 9.0
+    # bandwidth [Hz/px]
+    bw: float = 349
+    # gradient mode
     gradMode: str = choice("Rect", "Normal", "Verse", default="Verse")
 
-    excitationAngle: float = 90.0  # [°]
-
-    gradientExcitation: float = 0.0  # [mt/m], rectangular
-    durationExcitation: float = 2560.0  # [us], rectangular
+    # Excitation, Flip Angle [°]
+    excitationAngle: float = 90.0
+    # Excitation, gradient if rectangular/trapezoid [mt/m]
+    gradientExcitation: float = 0.0
+    # Excitation, duration of pulse [us]
+    durationExcitation: float = 2560.0
 
     gradientExcitationRephase: float = -10.51  # [mT/m], rephase
     durationExcitationRephase: float = 1080.0  # [us], rephase
@@ -86,10 +113,12 @@ class SequenceParams(Serializable):
     durationExcitationVerse1: float = 770.0  # [us], verse
     durationExcitationVerse2: float = 1020.0  # [us], verse
 
-    refocusAngle: float = 135  # [°]
-
-    gradientRefocus: float = 0.0  # [mT/m], rectangular
-    durationRefocus: float = 3584.0  # [us], rectangular
+    # Refocussing, Flip Angle [°]
+    refocusAngle: float = 135
+    # Refocussing, gradient strength if rectangular/trapezoid [mt/m]
+    gradientRefocus: float = 0.0
+    # Refocussing, duration of pulse [us]
+    durationRefocus: float = 3584.0
 
     gradientCrush: float = -38.70  # [mT/m], crusher
     durationCrush: float = 1000.0  # [us], crusher
@@ -99,8 +128,14 @@ class SequenceParams(Serializable):
     durationRefocusVerse1: float = 1080.0  # [us], verse
     durationRefocusVerse2: float = 1424.0  # [us], verse
 
-    gradientAcquisition: float = 0  # [mT/m]
+    gradientAcquisition: float = 0
+    # [mT/m]
     # gradient is set along Z axis to sample the magnetization into signal along the slice profile (artificial gradient)
+
+    def __post_init__(self):
+        self.gammaPi: float = self.gammaHz * 2 * np.pi
+        self.durationAcquisition: float = 1e6 / self.bw  # [us]
+        # time for acquisition (of one pixel) * 1e6 <- [(px)s] * 1e6
 
 
 @dataclass
@@ -108,8 +143,8 @@ class SimulationSettings(Serializable):
     """
     Optional settings for simulation eg. spatial resolution
     """
-    sampleNumber: int = 2000  # no of sampling points along slice profile
-    lengthZ: float = 0.01  # length extension of z-axis spanned by sample -> total length 2*lengthZ (-:+)
+    sampleNumber: int = 1000  # no of sampling points along slice profile
+    lengthZ: float = 0.005  # [m] length extension of z-axis spanned by sample -> total length 2*lengthZ (-:+)
     acquisitionNumber: int = 50  # number of bins across slice sample -> effectively sets spatial resolution
     # resolution = lengthZ / acquisitionNumber
 
@@ -181,7 +216,8 @@ class SimulationTempData:
     def __init__(self, simParams: SimulationParameters):
         self.sampleAxis = np.linspace(-simParams.settings.lengthZ, simParams.settings.lengthZ,
                                       simParams.settings.sampleNumber)
-        self.sample = np.exp(-8 * ((self.sampleAxis * 100) ** 16)) + 1e-6
+        # self.sample = np.exp(-8 * ((self.sampleAxis * 1e2) ** 16)) + 1e-6
+        self.sample = stats.gennorm(24).pdf(self.sampleAxis/simParams.settings.lengthZ*1.1) + 1e-6
         mInit = np.zeros([4, simParams.settings.sampleNumber])
         mInit[2, :] = self.sample
         mInit[3, :] = self.sample

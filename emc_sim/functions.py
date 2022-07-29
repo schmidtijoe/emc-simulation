@@ -234,7 +234,7 @@ def propagateGradientPulseTime(dictGradPulse: dict,
         normedRotationVectorAngle *= incrGamma
 
         # calculate gradient strength dependent diffusion attenuation
-        if simParams.config.d_flag:
+        if simParams.config.diffusionFlag:
             b = np.square(simParams.sequence.gammaHz) * np.square(gradT[idxT] * 1e-3) * tInSec ** 3
         else:
             b = 0

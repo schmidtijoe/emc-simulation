@@ -1,3 +1,5 @@
+import pprint
+
 import numpy as np
 import logging
 from emc_sim.options import SimulationParameters, SimulationTempData, SimulationData
@@ -8,15 +10,19 @@ import time
 logModule = logging.getLogger(__name__)
 
 
-def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (SimulationData, SimulationParameters):
+def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
+                  gradientPulseData: dict, arrayTiming: list) -> (
+        SimulationData, SimulationParameters):
     """
     For a single combination of T1, T2 and B1 value the sequence response is simulated iteratively,
     depending on the sequence scheme.
     This is the main function that needs to be addressed when putting in new sequence parameters.
     Also check out pulse profile files when using verse or other pulse schemes.
 
-    :return: simData, simParams, time_total
+    :return: simData, simParams
     """
+
+    logModule.debug(f"Start Simulation: params {pprint.pformat(simData.get_run_params())}")
     # ----- running ----- #
     t_start = time.time()
     # globals and sample are initiated within the SimulationParameters class
@@ -24,25 +30,11 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
     # we take the parameters of the specific run by assigning directly to the run obj of temp
     tempData.run = simData
 
-    # ----- defining pulses ----- #
-    logModule.debug('Pulse preparation - Timing')
-    GradientPulseData = prep.gradientPulsePreparation(simParams=simParams, simTempData=tempData)
-
-    # ----- setup timing ----- #
-    arrayTiming = prep.buildFillTiming_mese(simParams)
-
-    # visualize
-    if simParams.config.visualize:
-        logModule.debug('Visualization ON - Turn off when processing multiple instances!')
-        plotting.visualizeAllGradientPulses(GradientPulseData)
-        plotting.visualizeSequenceScheme(GradientPulseData, arrayTiming, simParams)
-        simParams.config.visualize = False
-
     # ----- Starting Calculations ----- #
-    logModule.debug('Simulation main calculation')
+    logModule.debug('run 1')
 
     tempData = functions.propagateGradientPulseTime(
-        dictGradPulse=GradientPulseData["excitation"],
+        dictGradPulse=gradientPulseData["excitation"],
         simParams=simParams,
         simTempData=tempData
     )
@@ -55,7 +47,7 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
     )
 
     tempData = functions.propagateGradientPulseTime(
-        dictGradPulse=GradientPulseData["refocus_1"],
+        dictGradPulse=gradientPulseData["refocus_1"],
         simParams=simParams,
         simTempData=tempData
     )
@@ -68,7 +60,7 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
 
     for acqIdx in range(simParams.settings.acquisitionNumber):
         tempData = functions.propagateGradientPulseTime(
-            dictGradPulse=GradientPulseData["acquisition"],
+            dictGradPulse=gradientPulseData["acquisition"],
             simParams=simParams,
             simTempData=tempData,
             append=False
@@ -90,7 +82,7 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
         )
 
         tempData = functions.propagateGradientPulseTime(
-            dictGradPulse=GradientPulseData["refocus"],
+            dictGradPulse=gradientPulseData["refocus"],
             simParams=simParams,
             simTempData=tempData
         )
@@ -103,7 +95,7 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
 
         for acqIdx in range(simParams.settings.acquisitionNumber):
             tempData = functions.propagateGradientPulseTime(
-                dictGradPulse=GradientPulseData["acquisition"],
+                dictGradPulse=gradientPulseData["acquisition"],
                 simParams=simParams,
                 simTempData=tempData,
                 append=False

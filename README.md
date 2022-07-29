@@ -1,14 +1,46 @@
 # EMC simulation package for python
 
-## Simulation Code for creating a database for multi - eccho spin - echo sequences
-- the main part does exactly this and is usable via commandline
-- serializability was added, hence one can also provide .json files with the configurations (todo: see examplefiles)
-- .json files can be saved (enabled by default) to keep track of the parameters for the created databases
+A Python Adaption of the Echo Modulation Curve Algorithm, a Bloch Simulation based Reconsturction for Multi-Echo Spin-Echo Data (Ben-Eliezer et al. 2015;
+[reference](https://doi.org/10.1002/mrm.25156) ).
 
-## Watch out
-- the simulation is based on knowing the sequence slice selective gradients and pulses.
-- The magnetization response to the sequence is simulated for a variety of relaxation values across the slice profile.
-- The sequence scheme has to be provided (e.g. through prior sequence simulations) in detail. The fields that need to be provided are found in the .sequence class, currently VERSE and rectangular gradients are implemented, pulse files might need to be loaded in and be provided externally (/external)
-- The simulation might be extended to other scanning modalities, check simulations or define your own scheme there
-- It is HIGHLY sequence dependent and might need to be modified, currently it is tailored to the sequence product se_mc sequence.
+#### When to use
+- Reconstruction of Multi-Echo Spin-Echo (MESE) slice selective MRI Sequences (possible extension to other slice selective modalities)
+- Evaluation of Slice Profiles and Stimulated Echoes
+- Generation of a lookup dictionary database of simulated sequence response curves for fitting of MESE data
+- quantitative $T_2$ estimation with evaluation of $B_1$ transmit field and perspectively diffusion bias.
 
+#### What is needed
+- conda or venv python environment specified by *environment.yml*
+- Sequence specs:
+  - pulses & gradients with exakt timings.
+  - Simulation uses hard pulse approximation but is tailored to the sequence parameters.
+  - i.e. IDEA sequence simulation for a siemens scanner measurement is needed
+
+#### How to use
+###### Command Line Interface:
+
+- activate environment, navigate to directory eg:
+
+```
+conda activate emc-simulation
+cd /path/to/emc_sim
+```
+
+- run script
+```
+python -m emc_sim
+```
+
+- This would refer to default settings, for easy interfacing it is best to save your sequence parameters within a configFile (see examples), which is just a .json file with all the parameters
+```
+python -m emc_sim --configFile /path/to/config.json
+```
+- examplary config:
+```
+
+```
+
+- Usage Options are available via
+```
+python -m emc_sim --help
+```

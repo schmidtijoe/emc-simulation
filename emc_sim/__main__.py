@@ -1,8 +1,7 @@
 import logging
 from pathlib import Path
-import numpy as np
 import pandas as pd
-from emc_sim import options, simulations, utils
+from emc_sim import options, simulations, utils, prep, plotting
 import multiprocessing as mp
 import time
 from itertools import chain
@@ -14,12 +13,22 @@ def simulate_single(
         simParams: options.SimulationParameters,
         simData: options.SimulationData,
         save: bool = False) -> (pd.DataFrame, options.SimulationParameters):
+    # prep pulse gradient data
+    # globals and sample are initiated within the SimulationParameters class
+    tempData, gradientPulseData, arrayTiming = prep.init_prep(simParams=simParams)
 
     param_list = simParams.settings.get_complete_param_list()
     emcAmplitude_resultlist = []
+
+    logging.info("Simulate")
     for item in param_list:
         simData.set_run_params(*item)
-        emcAmplitude, _ = simulations.simulate_mese(simParams, simData)
+        emcAmplitude, _ = simulations.simulate_mese(
+            simParams=simParams,
+            simData=simData,
+            gradientPulseData=gradientPulseData,
+            arrayTiming=arrayTiming
+        )
         emcAmplitude_resultlist.append(emcAmplitude.to_dict())
     dataBase = pd.DataFrame(emcAmplitude_resultlist)
 
@@ -41,8 +50,17 @@ def simulate_multi(
 
         :return: array of curves and corresponding simulation values
         """
+    # prep pulse gradient data
+    # globals and sample are initiated within the SimulationParameters class
+    tempData, gradientPulseData, arrayTiming = prep.init_prep(simParams=simParams)
+
     # estimate single process
-    _, simParams = simulations.simulate_mese(simParams=simParams, simData=simData)
+    _, simParams = simulations.simulate_mese(
+        simParams=simParams,
+        simData=simData,
+        gradientPulseData=gradientPulseData,
+        arrayTiming=arrayTiming
+    )
 
     # ---- using multiprocessing ---
 
@@ -50,9 +68,10 @@ def simulate_multi(
     logging.info(f'projected time: '
                  f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h')
 
+    logging.info("Simulate")
     # divide lists in as many parts as we have processes available (cpus)
     param_list = simParams.settings.get_complete_param_list()
-    mp_lists = [(simParams, simData, param_list[i::simParams.config.mpNumCpus])
+    mp_lists = [(simParams, simData, gradientPulseData, param_list[i::simParams.config.mpNumCpus])
                 for i in range(simParams.config.mpNumCpus)]
 
     start = time.time()
@@ -81,11 +100,15 @@ def wrapSimulateForMP(args) -> list:
     """
     simParams = args[0]
     simData = args[1]
-    mp_list = args[2]
+    gradPulseData = args[2]
+    mp_list = args[3]
     emcAmplitude_resultlist = []
     for item in mp_list:
         simData.set_run_params(*item)
-        emcAmplitude, _ = simulations.simulate_mese(simParams, simData)
+        emcAmplitude, _ = simulations.simulate_mese(
+            simParams=simParams,
+            simData=simData,
+            gradientPulseData=gradPulseData)
         emcAmplitude_resultlist.append(emcAmplitude.to_dict())
     return emcAmplitude_resultlist
 
@@ -96,15 +119,22 @@ def main():
     """
     parser, prog_args = options.createCommandlineParser()
 
+    if prog_args.config.debuggingFlag:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+
     logging.basicConfig(format='%(asctime)s %(message)s',
-                        datefmt='%I:%M:%S', level=logging.DEBUG)
-    logging.info("starting simulation")
-    logging.info("___ sequence dependent configuration of timing and pulses! ___")
+                    datefmt='%I:%M:%S', level=level)
 
     simParams = options.SimulationParameters.from_cmd_args(prog_args)
     simData = options.SimulationData.from_cmd_args(prog_args)
 
+    logging.info("starting simulation")
+    logging.info("___ sequence dependent configuration of timing and pulses! ___")
     logging.info("Configuration")
+    logging.info(f"spatial resolution set: {simParams.settings.lengthZ * 2 / simParams.settings.sampleNumber * 1e6:.3f}"
+                 f" um")
     logging.debug(pprint.pformat(simParams.to_dict()))
     try:
         if simParams.config.multiprocessing:

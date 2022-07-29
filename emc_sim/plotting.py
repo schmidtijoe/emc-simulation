@@ -68,8 +68,15 @@ def visualizeAllGradientPulses(gpDict: dict):
         plotData = gpDict[key]
         # create axes
         ax = fig.add_subplot(gpDict.__len__(), 1, counter)
-        ax.set_title('Pulse type: {}'.format(plotData['pulseType']))
-        visualizeGradientPulse(ax, plotData['gradientData'], plotData['pulseData'])
+        gpType = plotData['pulseType']
+        ax.set_title(f"Pulse type: {gpType}")
+        if gpType == "Acquisition":
+            plotGrad = plotData['gradientData'] * np.ones(int(plotData['temporalSamplingSteps']))
+            plotPulse = np.zeros(int(plotData['temporalSamplingSteps']))
+        else:
+            plotGrad = plotData['gradientData']
+            plotPulse = plotData['pulseData']
+        visualizeGradientPulse(ax, plotGrad, plotPulse)
 
     plt.tight_layout()
     plt.show()
@@ -153,25 +160,25 @@ def visualizeSignalResponse(emcCurve):
     plt.show()
 
 
-def plotMagnetization(tempData: SimulationTempData, simData: SimulationParameters):
+def plotMagnetization(tempData: SimulationTempData):
     fig = plt.figure(figsize=(8, 8), dpi=200)
 
     real = tempData.magnetizationPropagation[-1][0]
     imag = tempData.magnetizationPropagation[-1][1]
     absolute = np.linalg.norm(tempData.magnetizationPropagation[-1][0:2], axis=0)
     z = tempData.magnetizationPropagation[-1][2]
-    x_ax = tempData.sampleAxis
+    x_ax = tempData.sampleAxis * 1e3
 
     ax = fig.add_subplot(211)
-    ax.set_xlabel(f'position')
-    ax.set_ylabel(f'magnetization')
+    ax.set_xlabel(f'position [mm]')
+    ax.set_ylabel(f'magnetization [a.u.]')
     ax.plot(x_ax, real, label="real")
     ax.plot(x_ax, imag, label="imag")
     ax.legend()
 
     ax = fig.add_subplot(212)
-    ax.set_xlabel(f'position')
-    ax.set_ylabel(f'magnetization')
+    ax.set_xlabel(f'position [mm]')
+    ax.set_ylabel(f'magnetization [a.u.]')
     ax.fill_between(x_ax, absolute, alpha=0.5)
     ax.plot(x_ax, absolute, label="absolute")
     ax.plot(x_ax, z, label="z")

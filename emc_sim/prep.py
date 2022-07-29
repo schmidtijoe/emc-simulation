@@ -1,12 +1,33 @@
 import numpy as np
 import os
 import logging
+from emc_sim import plotting
 from emc_sim.options import SimulationParameters, SimulationTempData
 import emc_sim.functions as fns
+logModule = logging.getLogger(__name__)
+
+
+def init_prep(simParams: SimulationParameters) -> (SimulationTempData, dict, np.ndarray):
+    # prep pulse gradient data
+    # globals and sample are initiated within the SimulationParameters class
+    tempData = SimulationTempData(simParams)
+    # ----- defining pulses ----- #
+    gradientPulseData = gradientPulsePreparation(simParams=simParams, simTempData=tempData)
+
+    # ----- setup timing ----- #
+    arrayTiming = buildFillTiming_mese(simParams)
+
+    # visualize
+    if simParams.config.visualize:
+        logging.debug('Visualization ON - Turn off when processing multiple instances!')
+        plotting.visualizeAllGradientPulses(gradientPulseData)
+        plotting.visualizeSequenceScheme(gradientPulseData, arrayTiming, simParams)
+        plotting.plotMagnetization(tempData)
+    return tempData, gradientPulseData, arrayTiming
 
 
 def gradientPulsePreparation(simParams: SimulationParameters, simTempData: SimulationTempData):
-    logging.debug('pulse preparation - sequence scheme dependent!')
+    logModule.debug('pulse preparation')
     # excitation
     simTempData.excitation_flag = True
 
@@ -106,7 +127,7 @@ def gradientPulsePreparation(simParams: SimulationParameters, simTempData: Simul
     # built list of dictionaries containing values for each gradient pulses
     # dependent on sequence scheme
     # excitation
-    arrayGradientPulse = {
+    dictGradientPulse = {
         "excitation": {
             'pulseType': 'Excitation',
             'temporalSamplingSteps': dtExcitationPulse,
@@ -141,7 +162,7 @@ def gradientPulsePreparation(simParams: SimulationParameters, simTempData: Simul
             'pulseData': np.linspace(0, 0, 1)
         },
     }
-    return arrayGradientPulse
+    return dictGradientPulse
 
 
 def buildFillTiming_mese(simParams: SimulationParameters):
@@ -151,7 +172,6 @@ def buildFillTiming_mese(simParams: SimulationParameters):
     Highly Sequence scheme dependent!
     :return: timing array
     """
-    logging.debug('timing function - sequence scheme dependent!')
     # all in [us]
     arrayTime = np.zeros([simParams.sequence.ETL, 2])
 
@@ -178,7 +198,6 @@ def buildFillTiming_se(simParams: SimulationParameters):
     For SE sequence
     :return: timing array
     """
-    logging.info('timing function - sequence scheme dependent!')
     # all in [us]
     arrayTime = np.zeros(2)
 
