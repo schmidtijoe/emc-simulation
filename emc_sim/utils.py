@@ -33,7 +33,7 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
 
 
 def load_database(path_to_file: str, append_zero: bool = True) -> (pd.DataFrame, np.ndarray):
-    # need standardized way of saving the database here
+    # need standardized way of saving the database : changes in this function should work with the save method
     path = Path(path_to_file).absolute()
     if path.suffix == ".pkl":
         with open(path_to_file, "rb") as rfile:
@@ -76,6 +76,7 @@ def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str 
     """
     path = Path(path_to_nii_data).absolute()
     if ".nii" in path.suffixes:
+        # also works for .nii.gz -> path suffixes include all
         niiImg = nib.load(path)
         data = np.array(niiImg.get_fdata())
         if normalize == "max":
