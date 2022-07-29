@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 import pandas as pd
-from emc_sim import options, simulations, utils, prep, plotting
+from emc_sim import options, simulations, utils, prep
 import multiprocessing as mp
 import time
 from itertools import chain
@@ -71,7 +71,7 @@ def simulate_multi(
     logging.info("Simulate")
     # divide lists in as many parts as we have processes available (cpus)
     param_list = simParams.settings.get_complete_param_list()
-    mp_lists = [(simParams, simData, gradientPulseData, param_list[i::simParams.config.mpNumCpus])
+    mp_lists = [(simParams, simData, gradientPulseData, arrayTiming, param_list[i::simParams.config.mpNumCpus])
                 for i in range(simParams.config.mpNumCpus)]
 
     start = time.time()
@@ -101,14 +101,16 @@ def wrapSimulateForMP(args) -> list:
     simParams = args[0]
     simData = args[1]
     gradPulseData = args[2]
-    mp_list = args[3]
+    arrayTiming = args[3]
+    mp_list = args[4]
     emcAmplitude_resultlist = []
     for item in mp_list:
         simData.set_run_params(*item)
         emcAmplitude, _ = simulations.simulate_mese(
             simParams=simParams,
             simData=simData,
-            gradientPulseData=gradPulseData)
+            gradientPulseData=gradPulseData,
+            arrayTiming=arrayTiming)
         emcAmplitude_resultlist.append(emcAmplitude.to_dict())
     return emcAmplitude_resultlist
 

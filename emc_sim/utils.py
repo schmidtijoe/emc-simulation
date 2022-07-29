@@ -9,23 +9,6 @@ import nibabel as nib
 import pickle
 
 
-class NumpyJsonEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, complex):
-            return obj.real, obj.imag
-        if isinstance(obj, np.ndarray):
-            if len(obj.flatten()) > 1200:
-                return []
-            return obj.tolist()
-        return json.JSONEncoder.default(self, obj)
-
-
-def as_complex(dct):
-    if '__complex__' in dct:
-        return complex(dct['real'], dct['imag'])
-    return dct
-
-
 def create_folder_ifn_exist(folder):
     if not os.path.exists(folder):
         os.makedirs(folder)

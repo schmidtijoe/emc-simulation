@@ -4,14 +4,13 @@ import numpy as np
 import logging
 from emc_sim.options import SimulationParameters, SimulationTempData, SimulationData
 from emc_sim import functions
-from emc_sim import prep
-from emc_sim import plotting
 import time
+
 logModule = logging.getLogger(__name__)
 
 
 def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
-                  gradientPulseData: dict, arrayTiming: list) -> (
+                  gradientPulseData: dict, arrayTiming: np.ndarray) -> (
         SimulationData, SimulationParameters):
     """
     For a single combination of T1, T2 and B1 value the sequence response is simulated iteratively,
@@ -68,7 +67,7 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
 
         tempData.signalArray[0, acqIdx] = (np.sum(tempData.magnetizationPropagation[-1][0])
                                            + 1j * np.sum(tempData.magnetizationPropagation[-1][1])) \
-                                          * 100 * simParams.settings.lengthZ / simParams.settings.sampleNumber
+                                           * 100 * simParams.settings.lengthZ / simParams.settings.sampleNumber
         # signal scaled by distance between points (not entirely sure if this makes a difference
 
     # ----- refocusing loop - echo train -----
@@ -103,7 +102,8 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
 
             tempData.signalArray[loopIdx, acqIdx] = (np.sum(tempData.magnetizationPropagation[-1][0])
                                                      + 1j * np.sum(tempData.magnetizationPropagation[-1][1])) \
-                                                    * 100 * simParams.settings.lengthZ / simParams.settings.sampleNumber
+                                                     * 100 * simParams.settings.lengthZ / \
+                                                     simParams.settings.sampleNumber
             # signal scaled by distance between points (not entirely sure if this makes a difference
 
     # ----- finished loop -----
