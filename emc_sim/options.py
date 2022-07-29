@@ -7,6 +7,7 @@ from typing import List
 import logging
 logModule = logging.getLogger(__name__)
 from scipy import stats
+from emc_sim import utils
 
 
 @dataclass
@@ -218,6 +219,7 @@ class SimulationTempData:
                                       simParams.settings.sampleNumber)
         # self.sample = np.exp(-8 * ((self.sampleAxis * 1e2) ** 16)) + 1e-6
         self.sample = stats.gennorm(24).pdf(self.sampleAxis/simParams.settings.lengthZ*1.1) + 1e-6
+        self.sample = utils.normalize_array(self.sample, max_factor=1.0, normalization="max")
         mInit = np.zeros([4, simParams.settings.sampleNumber])
         mInit[2, :] = self.sample
         mInit[3, :] = self.sample
