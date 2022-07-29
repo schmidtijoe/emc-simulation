@@ -17,7 +17,7 @@ Thus a wide range of T~2~ values with varying step size can be created.
 - The easiest way providing pulse shapes is via a (.txt) file consisting of tab delimited amplitude and phase values (see *external/* folder).
 - If the visualization flag is set in the configuration it is easy to check the correct pulse input from the plotting of the pulse gradient forms:
 
-[![pgform](https://gitlab.gwdg.de/jochen.schmidt/emc-simulation-python/-/blob/master/examples/pulsegrad_visual.png)]
+[![pgform](https://github.com/schmidtijoe/emc-simulation/blob/master/examples/pulsegrad_visual.png)]
 
 for the given gaussian shape pulse
 
@@ -30,5 +30,5 @@ for the given gaussian shape pulse
 
 | Sample Initialization         | Excitation Profile          |
 | ---------------------         | ------------------          |
-| [![sample](https://gitlab.gwdg.de/jochen.schmidt/emc-simulation-python/-/blob/master/examples/sample_visual.png)]   | [![exci](https://gitlab.gwdg.de/jochen.schmidt/emc-simulation-python/-/blob/master/examples/profile_visual.png)]  |
+| [![sample](https://github.com/schmidtijoe/emc-simulation/blob/master/examples/sample_visual.png)]   | [![exci](https://github.com/schmidtijoe/emc-simulation/blob/master/examples/profile_visual.png)]  |
 |    | parameters: B1: 1.0, T2: 0.02  |
