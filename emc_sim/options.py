@@ -51,8 +51,8 @@ class SimulationConfig(Serializable):
     # set path to save database and used config
     savePath: str = "./data"
     # set filename of database
-    saveFile: str = "database_name.json"
-    # set filepath to external pulse-files
+    saveFile: str = "database_name.pkl"
+    # set filepath to external pulse-files (pkl or json)
     pathToExternals: str = "./external"
 
     # name of external pulse file for excitation
@@ -129,14 +129,11 @@ class SequenceParams(Serializable):
     durationRefocusVerse1: float = 1080.0  # [us], verse
     durationRefocusVerse2: float = 1424.0  # [us], verse
 
-    gradientAcquisition: float = 0
-    # [mT/m]
-    # gradient is set along Z axis to sample the magnetization into signal along the slice profile (artificial gradient)
-
     def __post_init__(self):
         self.gammaPi: float = self.gammaHz * 2 * np.pi
         self.durationAcquisition: float = 1e6 / self.bw  # [us]
         # time for acquisition (of one pixel) * 1e6 <- [(px)s] * 1e6
+        gradientAcquisition: float = 0
 
 
 @dataclass
@@ -150,7 +147,7 @@ class SimulationSettings(Serializable):
     # resolution = lengthZ / acquisitionNumber
 
     t1_list: List = field(default_factory=lambda: [1.5])  # T1 to simulate [s]
-    t2_list: List = field(default_factory=lambda: [[1, 20, 1]])  # T2 to simulate [ms]
+    t2_list: List = field(default_factory=lambda: [[25, 30, 0.5], [30, 35, 1]])  # T2 to simulate [ms]
     b1_list: List = field(default_factory=lambda: [0.9, 1.0])  # B1 to simulate
     d_list: List = field(default_factory=lambda: [700.0])
     # diffusion values to use if flag in config is set [mm²/s]
@@ -159,6 +156,8 @@ class SimulationSettings(Serializable):
     def __post_init__(self):
         array = np.empty(0)
         for item in self.t2_list:
+            if type(item) == str:
+                item = [float(i) for i in item[1:-1].split(',')]
             array = np.concatenate((array, np.arange(*item)))
 
         array = [t2 / 1000.0 for t2 in array]  # cast to [s]
@@ -190,16 +189,51 @@ class SimulationParameters(Serializable):
 
     @classmethod
     def from_cmd_args(cls, args: ArgumentParser.parse_args):
-        simParams = SimulationParameters(
-            config=args.config,
-            settings=args.settings,
-            sequence=args.sequence,
-        )
+        simParams = SimulationParameters(config=args.config, settings=args.settings, sequence=args.sequence)
+
+        nonDefaultConfig, nonDefaultSettings, nonDefaultSequence = simParams._checkNonDefaultVars()
 
         if args.config.configFile:
             simParams = SimulationParameters.load(args.config.configFile)
+            # overwrite non default input args
+            for key, value in nonDefaultConfig:
+                simParams.config.__setattr__(key, value)
+            for key, value in nonDefaultSettings:
+                simParams.settings.__setattr__(key, value)
+            for key, value in nonDefaultSequence:
+                simParams.sequence.__setattr__(key, value)
 
+        # we check parsed arguments for explicit cmd line input assuming explicit input means "different from default".
+        # Since everytime the cmd is parsed all values not given explicitly are parsed with respective
+        # dataclass defaults.
+        # Hence, if explicit input is coincidentally a default value this value will be ignored:
+        # eg. to overwrite an instance (containing non-default values) loaded by a configFile
+        # and explicitly trying to change entries to default via cmd input.
+        # ToDo: Fix explicit cmd line input
         return simParams
+
+    def _checkNonDefaultVars(self) -> (dict, dict, dict):
+        defConfig = SimulationConfig()
+        nonDefaultConfig = {}
+        for key, value in vars(self.config).items():
+            if self.config.__getattribute__(key) != defConfig.__getattribute__(key):
+                nonDefaultConfig.__setitem__(key, value)
+
+        defSettings = SimulationSettings()
+        nonDefaultSettings = {}
+        for key, value in vars(self.settings).items():
+            if self.settings.__getattribute__(key) != defSettings.__getattribute__(key):
+                nonDefaultSettings.__setitem__(key, value)
+
+        defSequence = SequenceParams()
+        nonDefaultSequence = {}
+        for key, value in vars(self.sequence).items():
+            # catch post init attribute
+            if key == 'gradientAcquisition':
+                continue
+            if self.sequence.__getattribute__(key) != defSequence.__getattribute__(key):
+                nonDefaultSequence.__setitem__(key, value)
+        return nonDefaultConfig, nonDefaultSettings, nonDefaultSequence
 
 
 @dataclass
