@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 import nibabel as nib
 import pickle
+from typing import Union
 
 
 def create_folder_ifn_exist(folder):
@@ -32,7 +33,7 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
     return max_factor * data_array
 
 
-def load_database(path_to_file: str, append_zero: bool = True) -> (pd.DataFrame, np.ndarray):
+def load_database(path_to_file: Union[str, Path], append_zero: bool = True) -> (pd.DataFrame, np.ndarray):
     # need standardized way of saving the database : changes in this function should work with the save method
     path = Path(path_to_file).absolute()
     if path.suffix == ".pkl":
