@@ -35,4 +35,4 @@ python -m emc_sim
 ```
 python -m emc_sim --configFile /path/to/config.json
 ```
-- exemplary config and run: see [examples](https://github.com/schmidtijoe/emc-simulation/tree/master/examples) folder
+- exemplary config and run: see [examples](./examples) folder
