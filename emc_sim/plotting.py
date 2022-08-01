@@ -171,14 +171,14 @@ def plotMagnetization(tempData: SimulationTempData):
     x_ax = tempData.sampleAxis * 1e3
 
     ax = fig.add_subplot(211)
-    ax.set_xlabel(f'position [mm]')
+    ax.set_xlabel(f'slice position [mm]')
     ax.set_ylabel(f'transverse magnetization [a.u.]')
     ax.plot(x_ax, real, color='#29856c', label="real")
     ax.plot(x_ax, imag, color='#5a2985', label="imag")
     ax.legend()
 
     ax = fig.add_subplot(212)
-    ax.set_xlabel(f'position [mm]')
+    ax.set_xlabel(f'slice position [mm]')
     ax.set_ylabel(f'magnetization [a.u.]')
     ax.set_ylim(-1.1, 1.1)
     ax.fill_between(x_ax, absolute, color='#29856c', alpha=0.5)
