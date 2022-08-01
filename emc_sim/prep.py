@@ -7,7 +7,7 @@ import emc_sim.functions as fns
 logModule = logging.getLogger(__name__)
 
 
-def init_prep(simParams: SimulationParameters) -> (SimulationTempData, dict, np.ndarray):
+def init_prep(simParams: SimulationParameters) -> (dict, np.ndarray):
     # prep pulse gradient data
     # globals and sample are initiated within the SimulationParameters class
     tempData = SimulationTempData(simParams)
@@ -23,7 +23,7 @@ def init_prep(simParams: SimulationParameters) -> (SimulationTempData, dict, np.
         plotting.visualizeAllGradientPulses(gradientPulseData)
         plotting.visualizeSequenceScheme(gradientPulseData, arrayTiming, simParams)
         plotting.plotMagnetization(tempData)
-    return tempData, gradientPulseData, arrayTiming
+    return gradientPulseData, arrayTiming
 
 
 def gradientPulsePreparation(simParams: SimulationParameters, simTempData: SimulationTempData):
