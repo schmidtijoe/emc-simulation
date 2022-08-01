@@ -79,6 +79,8 @@ class SimulationConfig(Serializable):
             self.mpNumCpus = mp.cpu_count() - self.mpHeadroom
             self.mpNumCpus = np.max([mp.cpu_count() - self.mpHeadroom, 4])
             # we take at least 4 cpus (kind of catches misconfiguration of the headroom parameter)
+        else:
+            self.mpNumCpus = 1
         self.mpNumCpus = int(self.mpNumCpus)
 
 
@@ -129,7 +131,7 @@ class SequenceParams(Serializable):
     durationRefocusVerse1: float = 1080.0  # [us], verse
     durationRefocusVerse2: float = 1424.0  # [us], verse
 
-    gradientAcquisition: float = field(init=False)      # set automatically after settings init
+    gradientAcquisition: float = 0.0     # set automatically after settings init
     # time for acquisition (of one pixel) * 1e6 <- [(px)s] * 1e6
 
     def __post_init__(self):
@@ -150,7 +152,7 @@ class SimulationSettings(Serializable):
 
     t1_list: List = field(default_factory=lambda: [1.5])  # T1 to simulate [s]
     t2_list: List = field(default_factory=lambda: [[25, 30, 0.5], [30, 35, 1]])  # T2 to simulate [ms]
-    b1_list: List = field(default_factory=lambda: [0.9, 1.0])  # B1 to simulate
+    b1_list: List = field(default_factory=lambda: [0.6, 1.0])  # B1 to simulate
     d_list: List = field(default_factory=lambda: [700.0])
     # diffusion values to use if flag in config is set [mm²/s]
     total_num_sim: int = 4
