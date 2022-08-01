@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 from emc_sim import options, simulations, utils, prep
 import multiprocessing as mp
+import tqdm
 import time
 from itertools import chain
 import pprint
@@ -15,31 +16,28 @@ def simulate_single(
         save: bool = False) -> (pd.DataFrame, options.SimulationParameters):
     # prep pulse gradient data
     # globals and sample are initiated within the SimulationParameters class
-    gradientPulseData, arrayTiming = prep.init_prep(simParams=simParams)
+    prep.init_prep_for_visualization(simParams=simParams)
 
     # estimate single process
     simData, simParams = simulations.simulate_mese(
         simParams=simParams,
-        simData=simData,
-        gradientPulseData=gradientPulseData,
-        arrayTiming=arrayTiming
+        simData=simData
     )
 
     logging.info(f'projected time: '
-                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\n'
+                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\t\t'
+                 f'({simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)\n'
                  f'for {simParams.settings.total_num_sim} curves')
 
     param_list = simParams.settings.get_complete_param_list()
     emcAmplitude_resultlist = []
 
     logging.info("Simulate")
-    for item in param_list:
+    for item in tqdm.tqdm(param_list, ncols=20):
         simData.set_run_params(*item)
         emcAmplitude, _ = simulations.simulate_mese(
             simParams=simParams,
-            simData=simData,
-            gradientPulseData=gradientPulseData,
-            arrayTiming=arrayTiming
+            simData=simData
         )
         emcAmplitude_resultlist.append(emcAmplitude.to_dict())
     dataBase = pd.DataFrame(emcAmplitude_resultlist)
@@ -70,27 +68,26 @@ def simulate_multi(
         """
     # prep pulse gradient data
     # globals and sample are initiated within the SimulationParameters class
-    tempData, gradientPulseData, arrayTiming = prep.init_prep(simParams=simParams)
+    prep.init_prep_for_visualization(simParams=simParams)
 
     # estimate single process
     _, simParams = simulations.simulate_mese(
         simParams=simParams,
-        simData=simData,
-        gradientPulseData=gradientPulseData,
-        arrayTiming=arrayTiming
+        simData=simData
     )
 
     # ---- using multiprocessing ---
 
     logging.info(f"Number of CPUs to use: {simParams.config.mpNumCpus}")
     logging.info(f'projected time: '
-                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\n'
+                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\t\t'
+                 f'({simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)\n'
                  f'for {simParams.settings.total_num_sim} curves')
 
     logging.info("Simulate")
     # divide lists in as many parts as we have processes available (cpus)
     param_list = simParams.settings.get_complete_param_list()
-    mp_lists = [(simParams, simData, gradientPulseData, arrayTiming, param_list[i::simParams.config.mpNumCpus])
+    mp_lists = [(simParams, simData, param_list[i::simParams.config.mpNumCpus])
                 for i in range(simParams.config.mpNumCpus)]
 
     start = time.time()
@@ -119,17 +116,13 @@ def wrapSimulateForMP(args) -> list:
     """
     simParams = args[0]
     simData = args[1]
-    gradPulseData = args[2]
-    arrayTiming = args[3]
-    mp_list = args[4]
+    mp_list = args[2]
     emcAmplitude_resultlist = []
     for item in mp_list:
         simData.set_run_params(*item)
         emcAmplitude, _ = simulations.simulate_mese(
             simParams=simParams,
-            simData=simData,
-            gradientPulseData=gradPulseData,
-            arrayTiming=arrayTiming)
+            simData=simData)
         emcAmplitude_resultlist.append(emcAmplitude.to_dict())
     return emcAmplitude_resultlist
 
