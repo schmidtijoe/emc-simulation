@@ -125,8 +125,9 @@ def visualizeSequenceScheme(gpDict: dict, timingArr: np.ndarray, simParams: Simu
         yPulse = np.concatenate((yPulse, gpDict[identifier]['pulseData']))
         yGrad = np.concatenate((yGrad, np.zeros(int(timingArr[idx, 1] / 5))))
         yPulse = np.concatenate((yPulse, np.zeros(int(timingArr[idx, 1] / 5))))
-        yGrad = np.concatenate((yGrad, - np.linspace(simParams.sequence.gradientAcquisition, simParams.sequence.gradientAcquisition,
-                                                     int(simParams.sequence.durationAcquisition / 5))))
+        yGrad = np.concatenate(
+            (yGrad, - np.linspace(simParams.sequence.gradientAcquisition, simParams.sequence.gradientAcquisition,
+                                  int(simParams.sequence.durationAcquisition / 5))))
         yPulse = np.concatenate((yPulse, np.zeros(int(simParams.sequence.durationAcquisition / 5))))
     plt.style.use('ggplot')
     fig = plt.figure(figsize=(10, 4), dpi=200)
@@ -171,17 +172,17 @@ def plotMagnetization(tempData: SimulationTempData):
 
     ax = fig.add_subplot(211)
     ax.set_xlabel(f'position [mm]')
-    ax.set_ylabel(f'magnetization [a.u.]')
-    ax.plot(x_ax, real, label="real")
-    ax.plot(x_ax, imag, label="imag")
+    ax.set_ylabel(f'transverse magnetization [a.u.]')
+    ax.plot(x_ax, real, color='#29856c', label="real")
+    ax.plot(x_ax, imag, color='#5a2985', label="imag")
     ax.legend()
 
     ax = fig.add_subplot(212)
     ax.set_xlabel(f'position [mm]')
     ax.set_ylabel(f'magnetization [a.u.]')
-    ax.fill_between(x_ax, absolute, alpha=0.5)
-    ax.plot(x_ax, absolute, label="absolute")
-    ax.plot(x_ax, z, label="z")
+    ax.set_ylim(-1.1, 1.1)
+    ax.fill_between(x_ax, absolute, color='#29856c', alpha=0.5)
+    ax.plot(x_ax, absolute, color='#29856c', label="absolute")
+    ax.plot(x_ax, z, color='#5a2985', label="z")
     ax.legend()
-
     plt.show()
