@@ -27,7 +27,7 @@ for the given gaussian shape pulse
 
 ### Sample & Pulse Profile
 - The initialized sample (left column) is also displayed when the visualization flag is turned on. The sample changes size with the defined slice thickness (*SimulationConfiguration.settings.lengthZ*)
-- Additionally a small code change would yield plots of the pulse profiles during the simulation to evaluate the magnitude evolution (not recommended simulations with high number of curves or ETL)
+- Additionally a small code change would yield plots of the pulse profiles during the simulation to evaluate the magnitude evolution (not recommended for simulations with high number of curves or ETL)
 - ToDo: add magnetization propagation evaluation visuals
 
 | Sample Initialization         | Excitation Profile          |
@@ -40,13 +40,16 @@ for the given gaussian shape pulse
 - For Siemens sequences this can be obtained from *IDEA* sequence simulations. The valuesa re then read of in the event blocks. (ToDo: insert image)
 - The sequence can once again be checked visually if the flag ist set
 ![sequence](./sequence_visual.png)
-Plotted are temporal sampling points, the acquisition is shifted in *z* -  direction, hence only *z* - gradients are shown here 
+Plotted are temporal sampling points, the acquisition is shifted in *z* -  direction, hence only *z* - gradients are shown here
 
 ### Generated Database
 - The Algorithm simulates a database for all given T1, T2, B1 (,D) Combinations which is stored in *SimulationConfiguration.config.savePath/saveFile*. It can be loaded in python via
 
 ```
-pd_database, np_database = emc_sim.utils.load_database(path/to/database, append_zero=True)
+pd_database, np_database = emc_sim.utils.load_database(path/to/database, append_zero=False)
 ```
 
-returning a pandas Dataframe and a numpy version of the created curves. By Default 0 curves are appended for enhanced fitting of sample free regions.
+returning a pandas Dataframe and a numpy version of the created curves.
+This is also a good testcase for a small number of simulation parameters: i.e. if B~1~^+^ is varied quite drastically (like on default between 0.6 and 1.0) the curves should show the dramatic influence of the stimulated echoes:
+
+![emc_curves](./emc_curves_plot.png)
