@@ -15,7 +15,19 @@ def simulate_single(
         save: bool = False) -> (pd.DataFrame, options.SimulationParameters):
     # prep pulse gradient data
     # globals and sample are initiated within the SimulationParameters class
-    tempData, gradientPulseData, arrayTiming = prep.init_prep(simParams=simParams)
+    gradientPulseData, arrayTiming = prep.init_prep(simParams=simParams)
+
+    # estimate single process
+    simData, simParams = simulations.simulate_mese(
+        simParams=simParams,
+        simData=simData,
+        gradientPulseData=gradientPulseData,
+        arrayTiming=arrayTiming
+    )
+
+    logging.info(f'projected time: '
+                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\n'
+                 f'for {simParams.settings.total_num_sim} curves')
 
     param_list = simParams.settings.get_complete_param_list()
     emcAmplitude_resultlist = []
@@ -35,7 +47,13 @@ def simulate_single(
     if save:
         path = Path(simParams.config.savePath)
         utils.create_folder_ifn_exist(path)
-        dataBase.to_json(path.joinpath(simParams.config.saveFile), indent=2)
+        s_f = Path(simParams.config.saveFile)
+        if ".pkl" in s_f.suffixes:
+            dataBase.to_pickle(path.joinpath(s_f).__str__())
+        elif ".json" in s_f.suffixes:
+            dataBase.to_json(path.joinpath(s_f), indent=2)
+        else:
+            raise AttributeError(f"{s_f}: save path file extension not recognized or not available!")
         simParams.save(path.joinpath("SimulationConfiguration.json"), indent=2, separators=(',', ':'))
     return dataBase, simParams
 
@@ -64,9 +82,10 @@ def simulate_multi(
 
     # ---- using multiprocessing ---
 
-    print("cpu number: {}".format(simParams.config.mpNumCpus))
+    logging.info(f"Number of CPUs to use: {simParams.config.mpNumCpus}")
     logging.info(f'projected time: '
-                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h')
+                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\n'
+                 f'for {simParams.settings.total_num_sim} curves')
 
     logging.info("Simulate")
     # divide lists in as many parts as we have processes available (cpus)
