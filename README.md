@@ -7,7 +7,7 @@ A Python Adaption of the Echo Modulation Curve Algorithm, a Bloch Simulation bas
 - Reconstruction of Multi-Echo Spin-Echo (MESE) slice selective MRI Sequences (possible extension to other slice selective modalities)
 - Evaluation of Slice Profiles and Stimulated Echoes
 - Generation of a lookup dictionary database of simulated sequence response curves for fitting of MESE data
-- quantitative T~2~ estimation with evaluation of B~1~ transmit field and perspectively diffusion bias.
+- quantitative T<sub>2</sub> estimation with evaluation of B<sub>1</sub> transmit field and perspectively diffusion bias.
 
 #### What is needed
 - conda or venv python environment specified by *environment.yml*
