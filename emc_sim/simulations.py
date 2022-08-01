@@ -3,14 +3,13 @@ import pprint
 import numpy as np
 import logging
 from emc_sim.options import SimulationParameters, SimulationTempData, SimulationData
-from emc_sim import functions
+from emc_sim import functions, plotting, prep
 import time
 
 logModule = logging.getLogger(__name__)
 
 
-def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
-                  gradientPulseData: dict, arrayTiming: np.ndarray) -> (
+def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
         SimulationData, SimulationParameters):
     """
     For a single combination of T1, T2 and B1 value the sequence response is simulated iteratively,
@@ -20,14 +19,22 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
 
     :return: simData, simParams
     """
-
     logModule.debug(f"Start Simulation: params {pprint.pformat(simData.get_run_params())}")
     # ----- running ----- #
     t_start = time.time()
+    # prep pulse gradient data
+
     # globals and sample are initiated within the SimulationParameters class
     tempData = SimulationTempData(simParams)
     # we take the parameters of the specific run by assigning directly to the run obj of temp
     tempData.run = simData
+
+    # ----- defining pulses ----- #
+    gradientPulseData = prep.gradientPulsePreparation(simParams=simParams, simTempData=tempData)
+
+    # ----- setup timing ----- #
+    arrayTiming = prep.buildFillTiming_mese(simParams)
+
 
     # ----- Starting Calculations ----- #
     logModule.debug('run 1')
@@ -37,6 +44,10 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
         simParams=simParams,
         simTempData=tempData
     )
+
+    if simParams.config.debuggingFlag and simParams.config.visualize:
+        # for debugging
+        plotting.plotMagnetization(tempData)
 
     # first refocus is different
     tempData = functions.propagateRelaxation(
@@ -105,7 +116,6 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
                                                      * 100 * simParams.settings.lengthZ / \
                                                      simParams.settings.sampleNumber
             # signal scaled by distance between points (not entirely sure if this makes a difference
-
     # ----- finished loop -----
 
     logModule.debug('Signal array processing fourier')
@@ -114,6 +124,8 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData,
     # factor 2 not necessary, stems from Noams version, ultimately want some normalization here!
     simData.time = time.time() - t_start
 
-    # for debugging
-    # np.save(f"mag_prop.npy", tempData.magnetizationPropagation)
+    if simParams.config.debuggingFlag and simParams.config.visualize:
+        # for debugging
+        plotting.plotMagnetization(tempData)
+        plotting.visualizeSignalResponse(simData.emcSignal)
     return simData, simParams
