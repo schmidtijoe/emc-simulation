@@ -23,17 +23,20 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
         "sum": np.sum(data_array, axis=-1, keepdims=True),
         "by_value": by_value
     }
-    assert norm.get(normalization), f"__ Error: normalization type not recognized __\n " \
-                                    f"choose one of the following: \n" \
-                                    f"\tmax \n" \
-                                    f"\tl2 \n" \
-                                    f"\tsum \n"
+    logging.debug(norm.get(normalization))
+    assert type(norm.get(normalization)) == np.ndarray, f"__ Error: normalization type ({normalization} not recognized" \
+                                                        f"__\n " \
+                                                        f"choose one of the following: \n" \
+                                                        f"\t- max \n" \
+                                                        f"\t- l2 \n" \
+                                                        f"\t- sum \n"
     data_norm = norm.get(normalization)
     data_array = np.divide(data_array, data_norm, where=data_norm != 0, out=np.zeros_like(data_array))
     return max_factor * data_array
 
 
-def load_database(path_to_file: Union[str, Path], append_zero: bool = True) -> (pd.DataFrame, np.ndarray):
+def load_database(path_to_file: Union[str, Path], append_zero: bool = True, normalization: str = "max") -> (
+        pd.DataFrame, np.ndarray):
     # need standardized way of saving the database : changes in this function should work with the save method
     path = Path(path_to_file).absolute()
     if path.suffix == ".pkl":
@@ -62,7 +65,7 @@ def load_database(path_to_file: Union[str, Path], append_zero: bool = True) -> (
         df = df.reset_index(drop=True)
 
     sim_data_flat = np.array([*df.emcSignal.to_numpy()])
-    sim_data_flat = normalize_array(sim_data_flat)
+    sim_data_flat = normalize_array(sim_data_flat, normalization=normalization)
     return df, sim_data_flat
 
 
@@ -84,8 +87,8 @@ def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str 
             data = normalize_array(data_array=data, normalization=normalize)
         if test_set:
             # want data from "middle" of image to not get 0 data for testing
-            idx_half = [int(data.shape[k]/2) for k in range(2)]
-            data = data[idx_half[0]:idx_half[0]+10, idx_half[1]:idx_half[1]+10]
+            idx_half = [int(data.shape[k] / 2) for k in range(2)]
+            data = data[idx_half[0]:idx_half[0] + 10, idx_half[1]:idx_half[1] + 10]
         return data, niiImg
     logging.error(f"input file {path}: type not recognized or no .nii file")
     raise AttributeError(f"input file {path}: type not recognized or no .nii file")
