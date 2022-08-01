@@ -129,11 +129,13 @@ class SequenceParams(Serializable):
     durationRefocusVerse1: float = 1080.0  # [us], verse
     durationRefocusVerse2: float = 1424.0  # [us], verse
 
+    gradientAcquisition: float = field(init=False)      # set automatically after settings init
+    # time for acquisition (of one pixel) * 1e6 <- [(px)s] * 1e6
+
     def __post_init__(self):
         self.gammaPi: float = self.gammaHz * 2 * np.pi
         self.durationAcquisition: float = 1e6 / self.bw  # [us]
-        # time for acquisition (of one pixel) * 1e6 <- [(px)s] * 1e6
-        gradientAcquisition: float = 0
+        #
 
 
 @dataclass
