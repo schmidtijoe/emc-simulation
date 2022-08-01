@@ -146,7 +146,7 @@ def main():
         level = logging.INFO
 
     logging.basicConfig(format='%(asctime)s %(message)s',
-                    datefmt='%I:%M:%S', level=level)
+                        datefmt='%I:%M:%S', level=level)
 
     simParams = options.SimulationParameters.from_cmd_args(prog_args)
     simData = options.SimulationData.from_cmd_args(prog_args)
