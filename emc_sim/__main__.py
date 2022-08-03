@@ -133,15 +133,15 @@ def main():
     """
     parser, prog_args = options.createCommandlineParser()
 
-    if prog_args.config.debuggingFlag:
+    simParams = options.SimulationParameters.from_cmd_args(prog_args)
+    # set logging level after possible config file read
+    if simParams.config.debuggingFlag:
         level = logging.DEBUG
     else:
         level = logging.INFO
 
     logging.basicConfig(format='%(asctime)s %(message)s',
                         datefmt='%I:%M:%S', level=level)
-
-    simParams = options.SimulationParameters.from_cmd_args(prog_args)
     simData = options.SimulationData.from_cmd_args(prog_args)
 
     logging.info("starting simulation")

@@ -200,11 +200,11 @@ class SimulationParameters(Serializable):
         if args.config.configFile:
             simParams = SimulationParameters.load(args.config.configFile)
             # overwrite non default input args
-            for key, value in nonDefaultConfig:
+            for key, value in nonDefaultConfig.items():
                 simParams.config.__setattr__(key, value)
-            for key, value in nonDefaultSettings:
+            for key, value in nonDefaultSettings.items():
                 simParams.settings.__setattr__(key, value)
-            for key, value in nonDefaultSequence:
+            for key, value in nonDefaultSequence.items():
                 simParams.sequence.__setattr__(key, value)
 
         # we check parsed arguments for explicit cmd line input assuming explicit input means "different from default".
