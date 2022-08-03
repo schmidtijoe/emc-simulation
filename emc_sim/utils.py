@@ -1,13 +1,13 @@
 import json
 import logging
-
+logModule = logging.getLogger(__name__)
 import numpy as np
 import os
 from pathlib import Path
 import pandas as pd
 import nibabel as nib
 import pickle
-from typing import Union
+import types
 
 
 def create_folder_ifn_exist(folder):
@@ -21,33 +21,34 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
         "max": np.max(data_array, keepdims=True, axis=-1),
         "l2": np.linalg.norm(data_array, keepdims=True, axis=-1),
         "sum": np.sum(data_array, axis=-1, keepdims=True),
-        "by_value": by_value
+        "by_value": np.array([by_value])
     }
-    logging.debug(norm.get(normalization))
-    assert type(norm.get(normalization)) == np.ndarray, f"__ Error: normalization type ({normalization} not recognized" \
-                                                        f"__\n " \
-                                                        f"choose one of the following: \n" \
-                                                        f"\t- max \n" \
-                                                        f"\t- l2 \n" \
-                                                        f"\t- sum \n"
+    if not type(norm.get(normalization)) == np.ndarray:
+        raise ValueError(f"normalization type not recognized, got {normalization}\n"
+                         f"choose one of the following: \n"
+                         f"\tmax \n"
+                         f"\tl2 \n"
+                         f"\tsum \n"
+                         f"\tby_value")
     data_norm = norm.get(normalization)
     data_array = np.divide(data_array, data_norm, where=data_norm != 0, out=np.zeros_like(data_array))
     return max_factor * data_array
 
 
-def load_database(path_to_file: Union[str, Path], append_zero: bool = True, normalization: str = "max") -> (
-        pd.DataFrame, np.ndarray):
-    # need standardized way of saving the database : changes in this function should work with the save method
+def load_database(path_to_file, append_zero: bool = True, normalization: str = "l2") -> (pd.DataFrame, np.ndarray):
+    # need standardized way of saving the database here
     path = Path(path_to_file).absolute()
-    if path.suffix == ".pkl":
-        with open(path_to_file, "rb") as rfile:
-            sim_dict = pickle.load(rfile)
-    elif path.suffix == ".json":
-        with open(path_to_file, "rb") as rfile:
-            sim_dict = json.load(rfile)
-    else:
-        logging.error("Database filetype not recognized")
-        exit(-1)
+    assert path.is_file()
+    load_fn = {
+        ".pkl": types.SimpleNamespace(function=pickle.load, context="rb"),
+        ".json": types.SimpleNamespace(function=json.load, context="r")
+    }
+    loader = load_fn.get(path.suffix)
+    # throws error if None -> None if key not in dict
+    assert loader, f"database filetype not supported !\n" \
+                   f"got: {path.suffix}; supported: {list(load_fn.keys())}"
+    with open(path, loader.context) as FILE:
+        sim_dict = loader.function(FILE)
 
     df = pd.DataFrame(sim_dict)
     len_b1s = len(df.b1.unique().astype(float))
@@ -90,5 +91,5 @@ def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str 
             idx_half = [int(data.shape[k] / 2) for k in range(2)]
             data = data[idx_half[0]:idx_half[0] + 10, idx_half[1]:idx_half[1] + 10]
         return data, niiImg
-    logging.error(f"input file {path}: type not recognized or no .nii file")
+    logModule.error(f"input file {path}: type not recognized or no .nii file")
     raise AttributeError(f"input file {path}: type not recognized or no .nii file")

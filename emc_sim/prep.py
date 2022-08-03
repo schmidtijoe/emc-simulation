@@ -8,7 +8,7 @@ logModule = logging.getLogger(__name__)
 
 
 def init_prep_for_visualization(simParams: SimulationParameters):
-    # globals and sample are initiated within the SimulationParameters class
+    # globals and sample are initiated as variables of the SimulationParameters class
     tempData = SimulationTempData(simParams)
     # ----- defining pulses ----- #
     gradientPulseData = gradientPulsePreparation(simParams=simParams, simTempData=tempData)
