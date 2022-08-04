@@ -5,9 +5,12 @@ from simple_parsing.helpers.serialization import register_decoding_fn, encode
 import multiprocessing as mp
 from typing import List
 import logging
-logModule = logging.getLogger(__name__)
 from scipy import stats
 from emc_sim import utils
+import pandas as pd
+from pathlib import Path
+
+logModule = logging.getLogger(__name__)
 
 
 @dataclass
@@ -238,6 +241,25 @@ class SimulationParameters(Serializable):
             if self.sequence.__getattribute__(key) != defSequence.__getattribute__(key):
                 nonDefaultSequence.__setitem__(key, value)
         return nonDefaultConfig, nonDefaultSettings, nonDefaultSequence
+
+    def save_database(self, database: pd.DataFrame) -> None:
+        base_path = Path(self.config.savePath).absolute()
+        # create parent folder ifn existent
+        utils.create_folder_ifn_exist(base_path)
+
+        db_path = base_path.joinpath(self.config.saveFile)
+        config_path = base_path.joinpath(f"{db_path.stem}_config.json")
+
+        # mode dependent on file ending given
+        save_fn = {
+            ".pkl": database.to_pickle(db_path.__str__()),
+            ".json": database.to_json(db_path.__str__(), indent=2)
+        }
+        assert save_fn.get(db_path.suffix), f"Database save path{db_path}: type not recognized;" \
+                                            f"Supported: {list(save_fn.keys())}"
+        save_fn.get(db_path.suffix)
+        # save used config
+        self.save(config_path, indent=2, separators=(',', ':'))
 
 
 @dataclass

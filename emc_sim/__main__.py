@@ -43,7 +43,7 @@ def simulate_single(
     dataBase = pd.DataFrame(emcAmplitude_resultlist)
 
     if save:
-        utils.save_database(database=dataBase, simParams=simParams)
+        simParams.save_database(database=dataBase)
     return dataBase, simParams
 
 
@@ -95,7 +95,7 @@ def simulate_multi(
     # df = pd.DataFrame(results)
 
     if save:
-        utils.save_database(database=dataBase, simParams=simParams)
+        simParams.save_database(database=dataBase)
 
 
 def wrapSimulateForMP(args) -> list:

@@ -9,7 +9,6 @@ import pandas as pd
 import nibabel as nib
 import pickle
 import types
-from emc_sim import options
 
 
 def create_folder_ifn_exist(folder):
@@ -60,26 +59,6 @@ def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str 
         return data, niiImg
     logModule.error(f"input file {path}: type not recognized or no .nii file")
     raise AttributeError(f"input file {path}: type not recognized or no .nii file")
-
-
-def save_database(database: pd.DataFrame, simParams: options.SimulationParameters) -> None:
-    base_path = Path(simParams.config.savePath).absolute()
-    # create parent folder ifn existent
-    create_folder_ifn_exist(base_path)
-
-    db_path = base_path.joinpath(simParams.config.saveFile)
-    config_path = base_path.joinpath(f"{db_path.stem}_config.json")
-
-    # mode dependent on file ending given
-    save_fn = {
-        ".pkl": database.to_pickle(db_path.__str__()),
-        ".json": database.to_json(db_path.__str__(), indent=2)
-    }
-    assert save_fn.get(db_path.suffix), f"Database save path{db_path}: type not recognized;" \
-                                        f"Supported: {list(save_fn.keys())}"
-    save_fn.get(db_path.suffix)
-    # save used config
-    simParams.save(config_path, indent=2, separators=(',', ':'))
 
 
 def load_database(path_to_file, append_zero: bool = True, normalization: str = "l2") -> (pd.DataFrame, np.ndarray):
