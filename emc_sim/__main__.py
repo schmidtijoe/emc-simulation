@@ -100,7 +100,7 @@ def simulate_multi(
 
     end = time.time()
 
-    logging.info(f'Finished simulation! Total time: {((end - start) / 3600):.2} h')
+    logging.info(f'Finished simulation! Total time: {((end - start) / 3600):.2} h \t\t ({((end - start) /60):.1f} min)')
     # df = pd.DataFrame(results)
 
     if save:
