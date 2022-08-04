@@ -43,16 +43,7 @@ def simulate_single(
     dataBase = pd.DataFrame(emcAmplitude_resultlist)
 
     if save:
-        path = Path(simParams.config.savePath)
-        utils.create_folder_ifn_exist(path)
-        s_f = Path(simParams.config.saveFile)
-        if ".pkl" in s_f.suffixes:
-            dataBase.to_pickle(path.joinpath(s_f).__str__())
-        elif ".json" in s_f.suffixes:
-            dataBase.to_json(path.joinpath(s_f), indent=2)
-        else:
-            raise AttributeError(f"{s_f}: save path file extension not recognized or not available!")
-        simParams.save(path.joinpath("SimulationConfiguration.json"), indent=2, separators=(',', ':'))
+        utils.save_database(database=dataBase, simParams=simParams)
     return dataBase, simParams
 
 
@@ -104,10 +95,7 @@ def simulate_multi(
     # df = pd.DataFrame(results)
 
     if save:
-        path = Path(simParams.config.savePath)
-        utils.create_folder_ifn_exist(path)
-        dataBase.to_json(path.joinpath(simParams.config.saveFile), indent=2)
-        simParams.save(path.joinpath("SimulationConfiguration.json"), indent=2, separators=(',', ':'))
+        utils.save_database(database=dataBase, simParams=simParams)
 
 
 def wrapSimulateForMP(args) -> list:

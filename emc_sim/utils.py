@@ -1,5 +1,6 @@
 import json
 import logging
+
 logModule = logging.getLogger(__name__)
 import numpy as np
 import os
@@ -8,6 +9,7 @@ import pandas as pd
 import nibabel as nib
 import pickle
 import types
+from emc_sim import options
 
 
 def create_folder_ifn_exist(folder):
@@ -35,8 +37,53 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
     return max_factor * data_array
 
 
+def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str = "max") -> (
+        np.ndarray, nib.nifti1.Nifti1Image):
+    """
+    Loads nii data into numpy array. and reshapes to 2d, normalizes
+    :param normalize: kind of normalization (area, max)
+    :param path_to_nii_data:
+    :param test_set: assumes [x,y,z (,t] data and picks 10x10 subset of x and y
+    :return: numpy array of nii data, nib img of data
+    """
+    path = Path(path_to_nii_data).absolute()
+    if ".nii" in path.suffixes:
+        # also works for .nii.gz -> path suffixes include all
+        niiImg = nib.load(path)
+        data = np.array(niiImg.get_fdata())
+        if normalize == "max":
+            data = normalize_array(data_array=data, normalization=normalize)
+        if test_set:
+            # want data from "middle" of image to not get 0 data for testing
+            idx_half = [int(data.shape[k] / 2) for k in range(2)]
+            data = data[idx_half[0]:idx_half[0] + 10, idx_half[1]:idx_half[1] + 10]
+        return data, niiImg
+    logModule.error(f"input file {path}: type not recognized or no .nii file")
+    raise AttributeError(f"input file {path}: type not recognized or no .nii file")
+
+
+def save_database(database: pd.DataFrame, simParams: options.SimulationParameters) -> None:
+    base_path = Path(simParams.config.savePath).absolute()
+    # create parent folder ifn existent
+    create_folder_ifn_exist(base_path)
+
+    db_path = base_path.joinpath(simParams.config.saveFile)
+    config_path = base_path.joinpath(f"{db_path.stem}_config.json")
+
+    # mode dependent on file ending given
+    save_fn = {
+        ".pkl": database.to_pickle(db_path.__str__()),
+        ".json": database.to_json(db_path.__str__(), indent=2)
+    }
+    assert save_fn.get(db_path.suffix), f"Database save path{db_path}: type not recognized;" \
+                                        f"Supported: {list(save_fn.keys())}"
+    save_fn.get(db_path.suffix)
+    # save used config
+    simParams.save(config_path, indent=2, separators=(',', ':'))
+
+
 def load_database(path_to_file, append_zero: bool = True, normalization: str = "l2") -> (pd.DataFrame, np.ndarray):
-    # need standardized way of saving the database here
+    # need standardized way of saving the database: changes here need changes in save fn above
     path = Path(path_to_file).absolute()
     assert path.is_file()
     load_fn = {
@@ -68,28 +115,3 @@ def load_database(path_to_file, append_zero: bool = True, normalization: str = "
     sim_data_flat = np.array([*df.emcSignal.to_numpy()])
     sim_data_flat = normalize_array(sim_data_flat, normalization=normalization)
     return df, sim_data_flat
-
-
-def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str = "max") -> (
-        np.ndarray, nib.nifti1.Nifti1Image):
-    """
-    Loads nii data into numpy array. and reshapes to 2d, normalizes
-    :param normalize: kind of normalization (area, max)
-    :param path_to_nii_data:
-    :param test_set: assumes [x,y,z (,t] data and picks 10x10 subset of x and y
-    :return: numpy array of nii data, nib img of data
-    """
-    path = Path(path_to_nii_data).absolute()
-    if ".nii" in path.suffixes:
-        # also works for .nii.gz -> path suffixes include all
-        niiImg = nib.load(path)
-        data = np.array(niiImg.get_fdata())
-        if normalize == "max":
-            data = normalize_array(data_array=data, normalization=normalize)
-        if test_set:
-            # want data from "middle" of image to not get 0 data for testing
-            idx_half = [int(data.shape[k] / 2) for k in range(2)]
-            data = data[idx_half[0]:idx_half[0] + 10, idx_half[1]:idx_half[1] + 10]
-        return data, niiImg
-    logModule.error(f"input file {path}: type not recognized or no .nii file")
-    raise AttributeError(f"input file {path}: type not recognized or no .nii file")
