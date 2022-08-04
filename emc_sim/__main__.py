@@ -24,10 +24,9 @@ def simulate_single(
         simData=simData
     )
 
-    logging.info(f'projected time: '
+    logging.info(f'projected time for {simParams.settings.total_num_sim} curves: '
                  f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\t\t'
-                 f'({simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)\n'
-                 f'for {simParams.settings.total_num_sim} curves')
+                 f'({simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)')
 
     param_list = simParams.settings.get_complete_param_list()
     emcAmplitude_resultlist = []
@@ -70,10 +69,9 @@ def simulate_multi(
     # ---- using multiprocessing ---
 
     logging.info(f"Number of CPUs to use: {simParams.config.mpNumCpus}")
-    logging.info(f'projected time: '
+    logging.info(f'projected time for {simParams.settings.total_num_sim} curves: '
                  f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\t\t'
-                 f'({simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)\n'
-                 f'for {simParams.settings.total_num_sim} curves')
+                 f'({simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)')
 
     logging.info("Simulate")
     # divide lists in as many parts as we have processes available (cpus)

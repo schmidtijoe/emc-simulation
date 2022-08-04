@@ -252,12 +252,12 @@ class SimulationParameters(Serializable):
 
         # mode dependent on file ending given
         save_fn = {
-            ".pkl": database.to_pickle(db_path.__str__()),
-            ".json": database.to_json(db_path.__str__(), indent=2)
+            ".pkl": database.to_pickle,
+            ".json": lambda obj: database.to_json(obj, indent=2)
         }
         assert save_fn.get(db_path.suffix), f"Database save path{db_path}: type not recognized;" \
                                             f"Supported: {list(save_fn.keys())}"
-        save_fn.get(db_path.suffix)
+        save_fn.get(db_path.suffix)(db_path.__str__())
         # save used config
         self.save(config_path, indent=2, separators=(',', ':'))
 
