@@ -1,11 +1,12 @@
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import chi
 from pathlib import Path
 from natsort import natsorted
 import nibabel as nib
-from emc_sim.noise.distributions import NcChi
+from emc_fit.noise.distributions import NcChi
+
+logModule = logging.getLogger(__name__)
 
 
 def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
@@ -35,8 +36,8 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
         elif mask_path.suffix == ".npy":
             mask_array = np.load(str(mask_path))
         else:
-            logging.error("mask file ending not recognized: "
-                          "give file as .nii or .npy")
+            logModule.error("mask file ending not recognized: "
+                            "give file as .nii or .npy")
             exit(-1)
     else:
         corner_idx = int(mask_array.shape[0] / corner_fraction)
@@ -51,7 +52,7 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
         mask_array = np.reshape(mask_array, [*mask_array.shape[:2], -1])
     if shape.__len__() < 3:
         if shape.__len__() < 2:
-            logging.error("input data dimension < 2, input at least data slice nii")
+            logModule.error("input data dimension < 2, input at least data slice nii")
             exit(-1)
         # input z dimension
         niiData = niiData[:, :, np.newaxis]
@@ -65,7 +66,7 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
 
     # init distribution class object
     dist_ncChi = NcChi()
-    # fit -> updates channels and sigma of ncchi object
+    # emc_fit -> updates channels and sigma of ncchi object
     dist_ncChi.fit_noise(noiseArray)
 
     if visualize:
@@ -79,7 +80,7 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
         fig = plt.figure(figsize=(15, 7))
         gs = fig.add_gridspec(2, 2)
         ax = fig.add_subplot(gs[0])
-        ax.imshow(niiData[:, :, 0], clim=(0, 3/4*np.max(niiData)), cmap=cmap)
+        ax.imshow(niiData[:, :, 0], clim=(0, 3 / 4 * np.max(niiData)), cmap=cmap)
         ax.axis('off')
         ax.grid(False)
 
@@ -94,7 +95,7 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
 
         ax.legend()
         plt.show()
-    logging.info(f"found distribution characteristics")
+    logModule.info(f"found distribution characteristics")
     dist_ncChi.get_stats()
     # reshape to original
     if shape.__len__() > 3:

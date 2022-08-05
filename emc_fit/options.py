@@ -1,8 +1,10 @@
+import numpy as np
 from simple_parsing import ArgumentParser, helpers, choice
 from dataclasses import dataclass
-from emc_sim.utils import create_folder_ifn_exist
+from emc_sim import utils
 from pathlib import Path
 import json
+import nibabel as nib
 
 
 @dataclass
@@ -51,6 +53,20 @@ class FitOptions:
             path = Path(fitSet.config.ConfigFile).absolute()
             fitSet = FitOptions.load(path)
         return fitSet
+
+    def saveFit(self, fitArray: np.ndarray, niiImg: nib.Nifti1Image, name: str):
+        shape = fitArray.shape
+        if shape.__len__() != niiImg.shape:
+            fitArray = np.reshape(fitArray, niiImg.shape[:-1])
+        else:
+            fitArray = np.reshape(fitArray, niiImg.shape)
+
+        # save
+        path = Path(self.config.FitDataOutputPath).absolute()
+        utils.create_folder_ifn_exist(path)
+
+        niiImg = nib.Nifti1Image(fitArray, niiImg.affine)
+        nib.save(niiImg, path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii"))
 
 
 def createCmdLineParser():

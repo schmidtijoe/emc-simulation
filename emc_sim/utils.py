@@ -1,7 +1,5 @@
 import json
 import logging
-
-logModule = logging.getLogger(__name__)
 import numpy as np
 import os
 from pathlib import Path
@@ -9,6 +7,9 @@ import pandas as pd
 import nibabel as nib
 import pickle
 import types
+from typing import Union
+
+logModule = logging.getLogger(__name__)
 
 
 def create_folder_ifn_exist(folder):
@@ -61,9 +62,13 @@ def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str 
     raise AttributeError(f"input file {path}: type not recognized or no .nii file")
 
 
-def load_database(path_to_file, append_zero: bool = True, normalization: str = "l2") -> (pd.DataFrame, np.ndarray):
+def load_database(path_to_file: Union[str, Path], append_zero: bool = True, normalization: str = "l2") -> (
+        pd.DataFrame, np.ndarray):
     # need standardized way of saving the database: changes here need changes in save fn above
-    path = Path(path_to_file).absolute()
+    if not isinstance(path_to_file, Path):
+        path = Path(path_to_file).absolute()
+    else:
+        path = path_to_file.absolute()
     assert path.is_file()
     load_fn = {
         ".pkl": types.SimpleNamespace(function=pickle.load, context="rb"),

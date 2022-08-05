@@ -1,5 +1,5 @@
 """
-Module to fit database with or without sampled noise meanto nii data.
+Module to emc_fit database with or without sampled noise meanto nii data.
 
 Different fitting options are build in as objects.
 Taking in the niiData (in 2D) and pandas/numpy objects of the database
@@ -13,26 +13,28 @@ import numpy as np
 import tqdm
 from scipy import stats
 
+logModule = logging.getLogger(__name__)
+
 
 class L2Fit:
     def __init__(self, nifti_data, pandas_database, numpy_database):
         self.pd_db = pandas_database
         self.np_db = numpy_database
         self.nii_data = nifti_data
-        logging.info("____________")
-        logging.info("l2 norm minimization fit")
+        logModule.info("____________")
+        logModule.info("l2 norm minimization emc_fit")
         # data supposed to be 2d and max normed to 1
         if nifti_data.shape.__len__() > 2:
-            logging.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
-            logging.info("Reshaping")
+            logModule.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
+            logModule.info("Reshaping")
             self.nii_data = np.reshape(nifti_data, [-1, nifti_data.shape[-1]])
         if np.max(nifti_data) > 1.001:
-            logging.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
-            logging.info("Rescaling")
+            logModule.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
+            logModule.info("Rescaling")
             self.nii_data = utils.normalize_array(self.nii_data)
         if nifti_data.shape.__len__() < 2:
             err = "Nifti Input Data assumed to be at least 2D: [voxels, echoes] but found 1D, exiting..."
-            logging.error(err)
+            logModule.error(err)
             raise AttributeError(err)
         self.num_curves = self.nii_data.shape[0]
 
@@ -40,7 +42,7 @@ class L2Fit:
         self.b1_map = np.zeros(self.num_curves)
 
     def fit(self):
-        logging.info(f"__ Fitting L2 Norm Minimization __")
+        logModule.info(f"__ Fitting L2 Norm Minimization __")
         # we do the fitting in blocks, (whole volume seems to be to expensive)
         # data shape = [num_curves, num_echoes]
         # need some timing checks
@@ -53,7 +55,7 @@ class L2Fit:
             self.t2_map[data_idx] = self.pd_db.iloc[fit_idx].t2
             self.b1_map[data_idx] = self.pd_db.iloc[fit_idx].b1
 
-        logging.info("Finished!")
+        logModule.info("Finished!")
 
     def get_maps(self) -> (np.ndarray, np.ndarray):
         return self.t2_map, self.b1_map
@@ -61,19 +63,19 @@ class L2Fit:
 
 class PearsonFit:
     def __init__(self, nifti_data, pandas_database, numpy_database):
-        logging.info("____________")
-        logging.info("pearson correlation coefficient fit")
+        logModule.info("____________")
+        logModule.info("pearson correlation coefficient emc_fit")
         self.pd_db = pandas_database
         self.np_db = numpy_database
         self.nii_data = nifti_data
         # data supposed to be 2d and max normed to 1
         if nifti_data.shape.__len__() != 2:
-            logging.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
-            logging.info("Reshaping")
+            logModule.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
+            logModule.info("Reshaping")
             self.nii_data = np.reshape(nifti_data, [-1, nifti_data.shape[-1]])
         if np.max(nifti_data) > 1.001:
-            logging.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
-            logging.info("Rescaling")
+            logModule.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
+            logModule.info("Rescaling")
             self.nii_data = utils.normalize_array(self.nii_data)
         self.num_curves = self.nii_data.shape[0]
 
@@ -100,7 +102,7 @@ class PearsonFit:
         return fit_idx
 
     def fit(self):
-        logging.info(f"__ Fitting Pearson Correlation Coefficient Maximization __")
+        logModule.info(f"__ Fitting Pearson Correlation Coefficient Maximization __")
         for bar_idx in tqdm.trange(self.num_curves):
             r_ = self.pearsons_multidim(self.nii_data[bar_idx], self.np_db)
             fit_idx = np.unravel_index(np.argmax(r_), shape=r_.shape)
@@ -108,7 +110,7 @@ class PearsonFit:
             self.t2_map[bar_idx] = self.pd_db.iloc[fit_idx].t2
             self.b1_map[bar_idx] = self.pd_db.iloc[fit_idx].b1
 
-        logging.info("Finished!")
+        logModule.info("Finished!")
 
     def get_maps(self) -> (np.ndarray, np.ndarray):
         return self.t2_map, self.b1_map
@@ -119,16 +121,16 @@ class MleFit:
         self.pd_db = pandas_database
         self.np_db = numpy_database
         self.nii_data = nifti_data
-        logging.info("____________")
-        logging.info("Maximum likelihood fit")
+        logModule.info("____________")
+        logModule.info("Maximum likelihood emc_fit")
         # data supposed to be 2d and max normed to 1
         if nifti_data.shape.__len__() != 2:
-            logging.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
-            logging.info("Reshaping")
+            logModule.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
+            logModule.info("Reshaping")
             self.nii_data = np.reshape(nifti_data, [-1, nifti_data.shape[-1]])
         if np.max(nifti_data) > 1.001:
-            logging.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
-            logging.info("Rescaling")
+            logModule.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
+            logModule.info("Rescaling")
             self.nii_data = utils.normalize_array(self.nii_data)
 
         self.t2_map = None
@@ -138,6 +140,6 @@ class MleFit:
         return self.t2_map, self.b1_map
 
     def fit(self):
-        logging.info(f"__ Fitting MLE __")
+        logModule.info(f"__ Fitting MLE __")
 
-        logging.info("Finished!")
+        logModule.info("Finished!")

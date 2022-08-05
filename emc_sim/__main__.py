@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 import pandas as pd
-from emc_sim import options, simulations, utils, prep
+from emc_sim import options, simulations, prep
 import multiprocessing as mp
 import tqdm
 import time
@@ -126,7 +126,7 @@ def main():
     else:
         level = logging.INFO
 
-    logging.basicConfig(format='%(asctime)s %(message)s',
+    logging.basicConfig(format='%(asctime)s :: %(name)s - %(message)s ',
                         datefmt='%I:%M:%S', level=level)
     simData = options.SimulationData.from_cmd_args(prog_args)
 

@@ -10,6 +10,8 @@ from scipy.special import ive, factorial, factorial2, hyp1f1
 import numpy as np
 import logging
 
+logModule = logging.getLogger(__name__)
+
 
 class NcChi:
     """nc-chi distribution"""
@@ -42,16 +44,16 @@ class NcChi:
         self.log_sigma = - 2 * self._log_func(self.sigma)
 
     def get_stats(self, evaluate: bool = False):
-        logging.info(f"___{self.name}___\n"
-                     f"number of uncorrelated channels:\t {self.num_channels}\n"
-                     f"sigma:\t\t\t\t\t {self.sigma:.2f} \n"
-                     f"____________")
+        logModule.info(f"___{self.name}___\n"
+                       f"number of uncorrelated channels:\t {self.num_channels}\n"
+                       f"sigma:\t\t\t\t\t {self.sigma:.2f} \n"
+                       f"____________")
         if evaluate:
-            logging.info(f"sigma values :\n"
-                         f"min: {self._sigma_min:.4f}\t max: {self._sigma_max:.4f}\n"
-                         f"amp values (z**2 / 2 sigma **2):\n"
-                         f"min: {self._amp_sig_min:.4f}\t max: {self._amp_sig_max:.4f}"
-                         )
+            logModule.info(f"sigma values :\n"
+                           f"min: {self._sigma_min:.4f}\t max: {self._sigma_max:.4f}\n"
+                           f"amp values (z**2 / 2 sigma **2):\n"
+                           f"min: {self._amp_sig_min:.4f}\t max: {self._amp_sig_max:.4f}"
+                           )
         return self.num_channels, self.sigma
 
     def fit_noise(self, noise_values):

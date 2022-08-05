@@ -1,5 +1,5 @@
 """
-Module to fit database with or without sampled noise mean via l2 norm to nii data
+Module to emc_fit database with or without sampled noise mean via l2 norm to nii data
 """
 import logging
 import os
@@ -7,10 +7,11 @@ import pickle
 
 import nibabel as nib
 import numpy as np
+import pandas as pd
+
 from emc_sim import utils
-from emc_sim.noise import handlers
-from emc_sim.noise import distributions
-from emc_sim.fit import options
+from emc_fit.noise import handlers
+from emc_fit import options
 import datetime as dt
 import multiprocessing as mp
 from operator import itemgetter
@@ -18,27 +19,33 @@ from itertools import chain
 from pathlib import Path
 import tqdm
 
+logModule = logging.getLogger(__name__)
+
 
 class DataResampler:
+    """
+    Class for Streamlining Noise Mean resampling of nii Input data
+    """
     def __init__(self, fitOpts: options.FitOptions):
-        logging.info(f"_____data resampler_____")
-        logging.info(f"____________________________")
+        logModule.info(f"_____data resampler_____")
+        logModule.info(f"____________________________")
         self.fitOpts = fitOpts
 
-        logging.info("Loading data")
+        logModule.info("Loading data")
         # data vars
         self.niiData, self.niiImg = utils.niiDataLoader(
             self.fitOpts.config.NiiDataPath,
             test_set=fitOpts.opts.TestingFlag,
             normalize=""
         )
+        logModule.info("Extract Noise Characteristics")
         # dont normalize, noise extraction is dependent on it
         self.ncChi, self.snrMap = handlers.extract_chi_noise_characteristics_from_nii(
             self.niiData,
             corner_fraction=fitOpts.opts.NoiseBackgroundEstimateCornerFraction,
             visualize=fitOpts.opts.NoiseBackgroundEstimateVisualize
         )
-        logging.info("Calculating interpolation array")
+        logModule.info("Calculating interpolation array")
         # build array between 0 and max value
         self.interpol_array = np.arange(np.max(self.niiData))
         self.interpol_mean = self.ncChi.mean(self.interpol_array)
@@ -50,9 +57,12 @@ class DataResampler:
         # multiprocessing, leave headroom but take at least 4
         self.numCpus = np.max([4, mp.cpu_count() - fitOpts.opts.ProcessingHeadroomMultiprocessing])
         self.multiprocessing = fitOpts.opts.Multiprocessing
-        logging.info("Finished Init")
+        logModule.info("Finished Init")
 
     def _wrap_resample(self, args):
+        """
+        wrap resampling function for multithreading
+        """
         index_list, data_list, interpol_mean = args
         data = np.array(data_list)
         sampled_arr = np.abs(data[np.newaxis] - interpol_mean[:, np.newaxis])
@@ -63,13 +73,16 @@ class DataResampler:
         return interpolated_data, index_list
 
     def resample(self):
-        logging.info("___Start Processing___")
+        """
+        Resample data
+        """
+        logModule.info("___Start Processing___")
         start = dt.datetime.now()
-        logging.info(f"start time: {start.strftime(self._time_formatter)}")
+        logModule.info(f"start time: {start.strftime(self._time_formatter)}")
 
         if self.multiprocessing:
-            logging.info("multiprocessing mode")
-            logging.info(f"using {self.numCpus} cpus")
+            logModule.info("multiprocessing mode")
+            logModule.info(f"using {self.numCpus} cpus")
             # divide data in chunks
             mp_data_idx = np.array_split(np.arange(len(self.niiData)), self.numCpus)
             mp_data = np.array_split(self.niiData, self.numCpus)
@@ -86,7 +99,7 @@ class DataResampler:
                 data, indexes = r
                 interpolated_data[indexes] = data
         else:
-            logging.info("single cpu mode")
+            logModule.info("single cpu mode")
             # watch out here, to vectorize we build a massive array, might not work with small compute systems
             # for each point we take absolute value of difference between interpolation points noise mean and data value
             sampled_arr = np.abs(self.niiData[np.newaxis] - self.interpol_mean[:, np.newaxis])
@@ -100,31 +113,41 @@ class DataResampler:
         # reshaping
         self.reNiiData = np.reshape(interpolated_data, self.niiImg.shape)
         end = dt.datetime.now()
-        logging.info(f"Finished: {end.strftime(self._time_formatter)}")
+        logModule.info(f"Finished: {end.strftime(self._time_formatter)}")
         t_total = (end - start).total_seconds()
-        logging.info(f"Compute time: {t_total / 60:.2f} min ({t_total / 3600:.1f} h)")
+        logModule.info(f"Compute time: {t_total / 60:.2f} min ({t_total / 3600:.1f} h)")
 
     def save_resampled(self):
+        """
+        Saving resampled data as .nii
+        """
         path = Path(self.fitOpts.config.ResampledDataOutputPath).absolute().joinpath("resampled_input.nii")
         utils.create_folder_ifn_exist(path.parent)
         img = nib.Nifti1Image(self.reNiiData, self.niiImg.affine)
         nib.save(img, path)
 
-    def get_data(self):
+    def get_data(self) -> (np.ndarray, nib.Nifti1Image):
+        """
+        get resampled data
+        """
         return self.reNiiData, self.niiImg
 
 
 class DatabaseResampler:
     def __init__(self, fitOpts: options.FitOptions):
-        logging.info(f"_____database resampler_____")
-        logging.info(f"____________________________")
+        logModule.info(f"_____database resampler_____")
+        logModule.info(f"____________________________")
         self.fitOpts = fitOpts
 
-        logging.info(f"Load data")
+        logModule.info(f"Load data")
         # database vars
-        self.pd_db, self.np_db = utils.load_database(self.fitOpts.config.DatabasePath, append_zero=False)
+        self.pd_db, self.np_db = utils.load_database(
+            self.fitOpts.config.DatabasePath, append_zero=False, normalization="max"
+        )
         # data vars
-        self.niiData, self.niiImg = utils.niiDataLoader(self.fitOpts.config.NiiDataPath, test_set=fitOpts.opts.TestingFlag, normalize="")
+        self.niiData, self.niiImg = utils.niiDataLoader(
+            self.fitOpts.config.NiiDataPath, test_set=fitOpts.opts.TestingFlag, normalize=""
+        )
         # dont normalize, noise extraction is dependent on it
         self.niiDataShape = self.niiData.shape
         self.ncChi, self.snrMap = handlers.extract_chi_noise_characteristics_from_nii(
@@ -144,10 +167,10 @@ class DatabaseResampler:
         self.numCpus = np.max([mp.cpu_count() - mp_headroom, 4])
 
     def resample(self):
-        logging.info("___Start Processing___")
+        logModule.info("___Start Processing___")
         start = dt.datetime.now()
-        logging.info(f"start time: {start.strftime(self._time_formatter)}")
-        logging.info(f"using {self.numCpus} cpus")
+        logModule.info(f"start time: {start.strftime(self._time_formatter)}")
+        logModule.info(f"using {self.numCpus} cpus")
         # split into datablocks
         snrIndexBlocks = np.array_split(np.arange(self.numCurves), self.fitOpts.opts.ProcessingNumBlocks)
         # trange? loop through bocks -> aim is to have smaller chunks to send of when multiprocessing
@@ -157,7 +180,7 @@ class DatabaseResampler:
         path = Path('temp').absolute()
 
         for block_idx in tqdm.trange(self.fitOpts.opts.ProcessingNumBlocks):
-            # logging.info(f"Processing Block {block_idx}/{self.fitOpts.opts.ResamplingNumBlocks}")
+            # logModule.info(f"Processing Block {block_idx}/{self.fitOpts.opts.ResamplingNumBlocks}")
             # have a list of indices to process
             indexes_to_process = snrIndexBlocks[block_idx]
             if not self.fitOpts.opts.TestingFlag:
@@ -188,9 +211,9 @@ class DatabaseResampler:
         self.re_dbs = utils.normalize_array(self.re_dbs)
         self.re_dbs = np.reshape(self.re_dbs, [*self.niiDataShape[:-1], *self.np_db.shape])
         end = dt.datetime.now()
-        logging.info(f"Finished: {end.strftime(self._time_formatter)}")
+        logModule.info(f"Finished: {end.strftime(self._time_formatter)}")
         t_total = (end - start).total_seconds()
-        logging.info(f"Compute time: {t_total / 60:.2f} min ({t_total / 3600:.1f} h)")
+        logModule.info(f"Compute time: {t_total / 60:.2f} min ({t_total / 3600:.1f} h)")
 
     def _mp_wrap_sampling(self, idx):
         snr = self.snrMap[idx]
@@ -208,7 +231,7 @@ class DatabaseResampler:
         return self.niiData, self.niiImg, self.pd_db, self.re_dbs
 
 
-def resampleDatabase(fitOpts: options.FitOptions) -> (np.ndarray, np.ndarray, np.ndarray, np.ndarray):
+def resampleDatabase(fitOpts: options.FitOptions) -> (np.ndarray, nib.Nifti1Image, pd.DataFrame, np.ndarray):
     dRe = DatabaseResampler(fitOpts=fitOpts)
     dRe.resample()
     if fitOpts.config.ResampledDataOutputPath:
@@ -217,7 +240,7 @@ def resampleDatabase(fitOpts: options.FitOptions) -> (np.ndarray, np.ndarray, np
     return niiData, niiImg, pd_db, np_db
 
 
-def resampleData(fitOpts: options.FitOptions) -> (np.ndarray, np.ndarray):
+def resampleData(fitOpts: options.FitOptions) -> (np.ndarray, nib.Nifti1Image):
     dRe = DataResampler(fitOpts=fitOpts)
     dRe.resample()
     if fitOpts.config.ResampledDataOutputPath:
