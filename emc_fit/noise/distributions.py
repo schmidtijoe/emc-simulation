@@ -9,6 +9,7 @@ from scipy.stats import chi
 from scipy.special import ive, factorial, factorial2, hyp1f1
 import numpy as np
 import logging
+import typing
 
 logModule = logging.getLogger(__name__)
 
@@ -16,17 +17,17 @@ logModule = logging.getLogger(__name__)
 class NcChi:
     """nc-chi distribution"""
 
-    def __init__(self, name='nc_chi_distribution'):
-        self.num_channels = None
-        self.sigma = None
-        self.log_sigma = None
-        self.name = name
-        self._mean_factor = 1.0
-        self._sigma_min = 10
-        self._sigma_max = -10
-        self._amp_sig = 1.0
-        self._amp_sig_min = 10
-        self._amp_sig_max = -10
+    def __init__(self, name: str = 'nc_chi_distribution'):
+        self.num_channels: int = -1
+        self.sigma: float = 0.0
+        self.log_sigma: float = 1.0
+        self.name: str = name
+        self._mean_factor: float = 1.0
+        self._sigma_min: float = 10.0
+        self._sigma_max: float = -10.0
+        self._amp_sig: typing.Union[int, float, np.ndarray] = 1.0
+        self._amp_sig_min: float = 10.0
+        self._amp_sig_max: float = -10.0
 
     def set_channels(self, num_channels: int):
         self.num_channels = num_channels
@@ -43,15 +44,14 @@ class NcChi:
         self.sigma = sigma
         self.log_sigma = - 2 * self._log_func(self.sigma)
 
-    def get_stats(self, evaluate: bool = False):
-        logModule.info(f"___{self.name}___\n"
-                       f"number of uncorrelated channels:\t {self.num_channels}\n"
-                       f"sigma:\t\t\t\t\t {self.sigma:.2f} \n"
-                       f"____________")
+    def get_stats(self, evaluate: bool = False) -> (int, float):
+        logModule.info(f"___{self.name}___: \t"
+                       f"number of uncorrelated channels: {self.num_channels}; \t"
+                       f"sigma: {self.sigma:.2f}")
         if evaluate:
             logModule.info(f"sigma values :\n"
-                           f"min: {self._sigma_min:.4f}\t max: {self._sigma_max:.4f}\n"
-                           f"amp values (z**2 / 2 sigma **2):\n"
+                           f"min: {self._sigma_min:.4f}\t max: {self._sigma_max:.4f}\t"
+                           f"amp values (z**2 / 2 sigma **2):\t"
                            f"min: {self._amp_sig_min:.4f}\t max: {self._amp_sig_max:.4f}"
                            )
         return self.num_channels, self.sigma
@@ -61,7 +61,8 @@ class NcChi:
         self.set_channels(int(round(params[0] / 2, 0)))
         self.set_sigma(params[2])
 
-    def pdf(self, x, amplitude):
+    def pdf(self, x: typing.Union[int, float, np.ndarray],
+            amplitude: typing.Union[int, float, np.ndarray]) -> np.ndarray:
         small_limit = 1e-6
         result_sl = chi(2 * self.num_channels, loc=amplitude, scale=self.sigma).pdf(x)
         log_res = self._log(x, amplitude)
@@ -74,13 +75,14 @@ class NcChi:
         return result
 
     @staticmethod
-    def _log_func(val):
+    def _log_func(val: typing.Union[int, float, np.ndarray]) -> typing.Union[float, np.ndarray]:
         return np.log(val, where=val > 0, out=np.full_like(np.array(val, dtype=float), -np.inf))
 
-    def _square_min_sigma(self):
+    def _square_min_sigma(self) -> float:
         return np.square(np.max([1e-4, self.sigma]))
 
-    def _log(self, x, amplitude):
+    def _log(self, x: typing.Union[int, float, np.ndarray],
+             amplitude: typing.Union[int, float, np.ndarray]) -> typing.Union[int, float, np.ndarray]:
         a = self._log_func(amplitude)
         # b = log sigma
         c = self.num_channels * self._log_func(x)
@@ -90,7 +92,8 @@ class NcChi:
         log_f = self._log_func(f) + x * amplitude / self._square_min_sigma()
         return a + self.log_sigma + c + d + e + log_f
 
-    def sampler(self, amplitude, size=1, p_sample_size=1000):
+    def sampler(self, amplitude: typing.Union[int, float, np.ndarray],
+                size: int = 1, p_sample_size: int = 1000) -> typing.Union[int, float, np.ndarray]:
         """
         This function samples from the non central chi distribution.
         If the amplitude is 0 a quicker sample is drawn from the builtin chi distribution.
@@ -100,8 +103,8 @@ class NcChi:
         :param p_sample_size: resolution, i.e. number of points, of pdf to draw from
         :return:
         """
-        small_limit = 1e-5
-        single_val = False
+        small_limit: float = 1e-5
+        single_val: bool = False
         # check if singular value or array
         if isinstance(amplitude, (float, int)):
             single_val = True
@@ -135,9 +138,10 @@ class NcChi:
             result = result[0]
         return result
 
-    def _result_for_nonzero(self, amps, size=1, p_sample_size=1000):
+    def _result_for_nonzero(self, amps: np.ndarray,
+                            size: int = 1, p_sample_size: int = 1000) -> np.ndarray:
         # define maximum value to which pdf is built
-        max_val = amps.max() + 10.0 * self.sigma
+        max_val = np.max(amps) + 10.0 * self.sigma
         # init x axis
         _x = np.linspace(0, max_val, p_sample_size)
         # init result array
@@ -149,7 +153,7 @@ class NcChi:
             draw[k_idx] = np.random.choice(_x, size=size, p=_pdf)
         return draw
 
-    def mean(self, amplitude):
+    def mean(self, amplitude: typing.Union[int, float, np.ndarray]):
         self._amp_sig = amplitude ** 2 / (2 * self.sigma ** 2)
         if np.max(self._amp_sig) > self._amp_sig_max:
             self._amp_sig_max = np.max(self._amp_sig)
@@ -166,12 +170,13 @@ class NcChi:
             self.set_sigma(1.0)
 
     def reset_value_tracker(self):
-        self._sigma_min = 10
-        self._sigma_max = -10
-        self._amp_sig_min = 10
-        self._amp_sig_max = -10
+        self._sigma_min = 10.0
+        self._sigma_max = -10.0
+        self._amp_sig_min = 10.0
+        self._amp_sig_max = -10.0
 
-    def likelihood(self, x, amplitude):
+    def likelihood(self, x: typing.Union[int, float, np.ndarray],
+                   amplitude: typing.Union[int, float, np.ndarray]) -> typing.Union[float, np.ndarray]:
         if isinstance(x, float):
             return self._log(x, amplitude)
         else:

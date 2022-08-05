@@ -126,7 +126,7 @@ def main():
     else:
         level = logging.INFO
 
-    logging.basicConfig(format='%(asctime)s :: %(name)s - %(message)s ',
+    logging.basicConfig(format='%(asctime)s %(levelname)s :: %(name)s --  %(message)s',
                         datefmt='%I:%M:%S', level=level)
     simData = options.SimulationData.from_cmd_args(prog_args)
 

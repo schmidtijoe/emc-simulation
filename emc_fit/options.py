@@ -69,7 +69,7 @@ class FitOptions:
         nib.save(niiImg, path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii"))
 
 
-def createCmdLineParser():
+def createCmdLineParser() -> (ArgumentParser, ArgumentParser.parse_args):
     """
     Build the parser for arguments
     Parse the input arguments.

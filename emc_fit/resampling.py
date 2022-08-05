@@ -187,7 +187,9 @@ class DatabaseResampler:
                 with mp.Pool(self.numCpus) as p:
                     resampledDbList = p.map(self._mp_wrap_sampling, indexes_to_process)
             else:
-                resampledDbList = [self._mp_wrap_sampling(indexes_to_process[k]) for k in range(len(indexes_to_process))]
+                resampledDbList = [
+                    self._mp_wrap_sampling(indexes_to_process[k]) for k in range(len(indexes_to_process))
+                ]
 
             # temp save list
             with open(path.joinpath(f"re_db_block_{block_idx}.pkl"), "wb") as p_file:
@@ -247,5 +249,3 @@ def resampleData(fitOpts: options.FitOptions) -> (np.ndarray, nib.Nifti1Image):
         dRe.save_resampled()
     niiData, niiImg = dRe.get_data()
     return niiData, niiImg
-
-

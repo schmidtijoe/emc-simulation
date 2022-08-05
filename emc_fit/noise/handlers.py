@@ -13,7 +13,7 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
                                                corner_fraction: float = 8.0,
                                                visualize: bool = True,
                                                mask: str = "",
-                                               cmap: str = "gray"):
+                                               cmap: str = "gray") -> (NcChi, np.ndarray):
     """
     Input slice dim or 3d nii file with sample free corners, aka noise
     dimensions assumed: [x, y, z]

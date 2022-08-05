@@ -91,7 +91,7 @@ if __name__ == '__main__':
     parser, args = options.createCmdLineParser()
     opts = options.FitOptions.fromCmdLine(args)
     # set up logging
-    logging.basicConfig(format='%(asctime)s :: %(name)s - %(message)s ',
+    logging.basicConfig(format='%(asctime)s %(levelname)s :: %(name)s --  %(message)s',
                         datefmt='%I:%M:%S', level=logging.INFO)
     try:
         main(opts)
