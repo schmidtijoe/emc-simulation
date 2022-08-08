@@ -83,7 +83,7 @@ class DataResampler:
         else:
             selection = self.niiData >= 0.0
         # calculate offset between mean noised amplitude and data
-        diff = np.subract(self.niiData[selection], self.ncChi.mean(self.reNiiData[selection]))
+        diff = np.subtract(self.niiData[selection], self.ncChi.mean(self.reNiiData[selection]))
         max_diff = np.max(diff)
         result = np.add(self.reNiiData[selection], diff)
         result = np.clip(result, 0.0, np.max(result))
