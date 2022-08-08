@@ -83,9 +83,9 @@ class DataResampler:
         else:
             selection = self.niiData >= 0.0
         # calculate offset between mean noised amplitude and data
-        diff = self.niiData[selection] - self.ncChi.mean(self.reNiiData[selection])
+        diff = np.subract(self.niiData[selection], self.ncChi.mean(self.reNiiData[selection]))
         max_diff = np.max(diff)
-        result = self.reNiiData[selection] + diff
+        result = np.add(self.reNiiData[selection], diff)
         result = np.clip(result, 0.0, np.max(result))
         self.reNiiData[selection] = result
         return np.count_nonzero(selection), max_diff
@@ -155,10 +155,10 @@ class DataResampler:
         """
         Saving resampled data as .nii
         """
-        path = Path(self.fitOpts.config.ResampledDataOutputPath).absolute().joinpath("resampled_input.nii")
-        utils.create_folder_ifn_exist(path.parent)
+        path = Path(self.fitOpts.config.ResampledDataOutputPath).absolute()
+        utils.create_folder_ifn_exist(path)
         img = nib.Nifti1Image(self.reNiiData, self.niiImg.affine)
-        nib.save(img, path)
+        nib.save(img, path.joinpath("resampled_input.nii"))
 
     def get_data(self) -> (np.ndarray, nib.Nifti1Image):
         """
