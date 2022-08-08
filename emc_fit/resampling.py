@@ -45,15 +45,20 @@ class DataResampler:
             corner_fraction=fitOpts.opts.NoiseBackgroundEstimateCornerFraction,
             visualize=fitOpts.opts.NoiseBackgroundEstimateVisualize
         )
+        # misc
+        self.eps = 1e-5
+        self._time_formatter = "%H:%M:%S"
+        self.num_iter = 20
+
         logModule.info("Calculating interpolation array")
         # build array between 0 and max value
         self.interpol_array = np.arange(np.max(self.niiData))
         self.interpol_mean = self.ncChi.mean(self.interpol_array)
         # provide 1d
         self.niiData = self.niiData.flatten()
-        self.reNiiData = None
-        # misc
-        self._time_formatter = "%H:%M:%S"
+        self.reNiiData = np.zeros_like(self.niiData)
+        # first init
+        self.iterate_approximation(eps=False)
         # multiprocessing, leave headroom but take at least 4
         self.numCpus = np.max([4, mp.cpu_count() - fitOpts.opts.ProcessingHeadroomMultiprocessing])
         self.multiprocessing = fitOpts.opts.Multiprocessing
@@ -72,7 +77,36 @@ class DataResampler:
         interpolated_data = self.interpol_array[fit_idx]
         return interpolated_data, index_list
 
+    def iterate_approximation(self, eps: bool = True):
+        if eps:
+            selection = self.reNiiData > self.eps
+        else:
+            selection = self.niiData >= 0.0
+        # calculate offset between mean noised amplitude and data
+        diff = self.niiData[selection] - self.ncChi.mean(self.reNiiData[selection])
+        max_diff = np.max(diff)
+        result = self.reNiiData[selection] + diff
+        result = np.clip(result, 0, np.max(result))
+        self.reNiiData[selection] = result
+        return len(selection), max_diff
+
     def resample(self):
+        logModule.info("___Start Processing___")
+        start = dt.datetime.now()
+        logModule.info(f"start time: {start.strftime(self._time_formatter)}")
+        bar = tqdm.trange(self.num_iter)
+        for _ in bar:
+            num_curves, max_diff = self.iterate_approximation()
+            bar.set_postfix_str(f"maximum offset of approx mean for {num_curves} curves: {max_diff:.4f}")
+
+        # reshaping
+        self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
+        end = dt.datetime.now()
+        logModule.info(f"Finished: {end.strftime(self._time_formatter)}")
+        t_total = (end - start).total_seconds()
+        logModule.info(f"Compute time: {t_total / 60:.2f} min ({t_total / 3600:.1f} h)")
+
+    def resample_old(self):
         """
         Resample data
         """

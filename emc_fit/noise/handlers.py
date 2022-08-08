@@ -40,11 +40,13 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
                             "give file as .nii or .npy")
             exit(-1)
     else:
-        corner_idx = int(mask_array.shape[0] / corner_fraction)
-        mask_array[:corner_idx, :corner_idx] = True
-        mask_array[:corner_idx, -corner_idx:] = True
-        mask_array[-corner_idx:, :corner_idx] = True
-        mask_array[-corner_idx:, -corner_idx:] = True
+        mid_x = int(shape[0] / 2)
+        mid_y = int(shape[1] / 2)
+        size_x = int(shape[0] / corner_fraction)
+        size_y = int(shape[1] / corner_fraction)
+        # fill middle rectangle and use fftshift to shift to corners
+        mask_array[mid_x - size_x:mid_x + size_x, mid_y - size_y:mid_y + size_y] = True
+        mask_array = np.fft.fftshift(mask_array)
     # cast shapes to 3D
     if mask_array.shape.__len__() < 3:
         mask_array = mask_array[:, :, np.newaxis]
