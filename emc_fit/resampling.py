@@ -86,9 +86,9 @@ class DataResampler:
         diff = self.niiData[selection] - self.ncChi.mean(self.reNiiData[selection])
         max_diff = np.max(diff)
         result = self.reNiiData[selection] + diff
-        result = np.clip(result, 0, np.max(result))
+        result = np.clip(result, 0.0, np.max(result))
         self.reNiiData[selection] = result
-        return len(selection), max_diff
+        return np.count_nonzero(selection), max_diff
 
     def resample(self):
         logModule.info("___Start Processing___")
