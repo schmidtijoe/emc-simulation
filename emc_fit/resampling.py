@@ -4,11 +4,13 @@ Module to emc_fit database with or without sampled noise mean via l2 norm to nii
 import logging
 import os
 import pickle
+import typing
 
 import nibabel as nib
 import numpy as np
 import pandas as pd
 
+from scipy import special, optimize
 from emc_sim import utils
 from emc_fit.noise import handlers
 from emc_fit import options
@@ -27,7 +29,7 @@ class DataResampler:
     Class for Streamlining Noise Mean resampling of nii Input data
     """
     def __init__(self, fitOpts: options.FitOptions):
-        logModule.info(f"_____data resampler_____")
+        logModule.info(f"_______data resampler_______")
         logModule.info(f"____________________________")
         self.fitOpts = fitOpts
 
@@ -48,12 +50,12 @@ class DataResampler:
         # misc
         self.eps = 1e-5
         self._time_formatter = "%H:%M:%S"
-        self.num_iter = 20
+        self.num_iter = 10
+        self.lambda_regularize_weight = 0.01
 
-        logModule.info("Calculating interpolation array")
         # build array between 0 and max value
-        self.interpol_array = np.arange(np.max(self.niiData))
-        self.interpol_mean = self.ncChi.mean(self.interpol_array)
+        # self.interpol_array = np.arange(np.max(self.niiData))
+        # self.interpol_mean = self.ncChi.mean(self.interpol_array)
         # provide 1d
         self.niiData = self.niiData.flatten()
         self.reNiiData = np.zeros_like(self.niiData)
@@ -64,18 +66,18 @@ class DataResampler:
         self.multiprocessing = fitOpts.opts.Multiprocessing
         logModule.info("Finished Init")
 
-    def _wrap_resample(self, args):
-        """
-        wrap resampling function for multithreading
-        """
-        index_list, data_list, interpol_mean = args
-        data = np.array(data_list)
-        sampled_arr = np.abs(data[np.newaxis] - interpol_mean[:, np.newaxis])
-        # we look for the smallest of those differences
-        fit_idx = np.argmin(sampled_arr, axis=0)
-        # we take the interpolation value corresponding to the index
-        interpolated_data = self.interpol_array[fit_idx]
-        return interpolated_data, index_list
+    # def _wrap_resample(self, args):
+    #     """
+    #     wrap resampling function for multithreading
+    #     """
+    #     index_list, data_list, interpol_mean = args
+    #     data = np.array(data_list)
+    #     sampled_arr = np.abs(data[np.newaxis] - interpol_mean[:, np.newaxis])
+    #     # we look for the smallest of those differences
+    #     fit_idx = np.argmin(sampled_arr, axis=0)
+    #     # we take the interpolation value corresponding to the index
+    #     interpolated_data = self.interpol_array[fit_idx]
+    #     return interpolated_data, index_list
 
     def iterate_approximation(self, eps: bool = True):
         if eps:
@@ -94,58 +96,15 @@ class DataResampler:
         logModule.info("___Start Processing___")
         start = dt.datetime.now()
         logModule.info(f"start time: {start.strftime(self._time_formatter)}")
-        bar = tqdm.trange(self.num_iter)
-        for _ in bar:
-            num_curves, max_diff = self.iterate_approximation()
-            bar.set_postfix_str(f"maximum offset of approx mean for {num_curves} curves: {max_diff:.4f}")
+        # bar = tqdm.trange(self.num_iter)
+        # for _ in bar:
+        #     num_curves, max_diff = self.iterate_approximation()
+        #     bar.set_postfix_str(f"maximum offset of approx mean for {num_curves} curves: {max_diff:.4f}")
+        #
+        # # reshaping
+        # self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
+        self.mmIteration()
 
-        # reshaping
-        self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
-        end = dt.datetime.now()
-        logModule.info(f"Finished: {end.strftime(self._time_formatter)}")
-        t_total = (end - start).total_seconds()
-        logModule.info(f"Compute time: {t_total / 60:.2f} min ({t_total / 3600:.1f} h)")
-
-    def resample_old(self):
-        """
-        Resample data
-        """
-        logModule.info("___Start Processing___")
-        start = dt.datetime.now()
-        logModule.info(f"start time: {start.strftime(self._time_formatter)}")
-
-        if self.multiprocessing:
-            logModule.info("multiprocessing mode")
-            logModule.info(f"using {self.numCpus} cpus")
-            # divide data in chunks
-            mp_data_idx = np.array_split(np.arange(len(self.niiData)), self.numCpus)
-            mp_data = np.array_split(self.niiData, self.numCpus)
-            mp_args = [(mp_data_idx[mp_idx], mp_data[mp_idx], self.interpol_mean) for mp_idx in range(self.numCpus)]
-            if self.fitOpts.opts.TestingFlag:
-                result = []
-                for idx in range(self.numCpus):
-                    result.append(self._wrap_resample(mp_args[idx]))
-            else:
-                with mp.Pool(self.numCpus) as p:
-                    result = p.map(self._wrap_resample, mp_args)
-            interpolated_data = np.zeros_like(self.niiData)
-            for r in result:
-                data, indexes = r
-                interpolated_data[indexes] = data
-        else:
-            logModule.info("single cpu mode")
-            # watch out here, to vectorize we build a massive array, might not work with small compute systems
-            # for each point we take absolute value of difference between interpolation points noise mean and data value
-            sampled_arr = np.abs(self.niiData[np.newaxis] - self.interpol_mean[:, np.newaxis])
-            # we look for the smallest of those differences
-            fit_idx = np.argmin(sampled_arr, axis=0)
-            # we take the interpolation value corresponding to the index and reshape
-            interpolated_data = self.interpol_array[fit_idx]
-        # if in testmode we cant reshape here exit before
-        if self.fitOpts.opts.TestingFlag:
-            return
-        # reshaping
-        self.reNiiData = np.reshape(interpolated_data, self.niiImg.shape)
         end = dt.datetime.now()
         logModule.info(f"Finished: {end.strftime(self._time_formatter)}")
         t_total = (end - start).total_seconds()
@@ -165,6 +124,91 @@ class DataResampler:
         get resampled data
         """
         return self.reNiiData, self.niiImg
+
+    def _majorante(self, arg_arr: typing.Union[np.ndarray, float, int]) -> typing.Union[np.ndarray, float]:
+        is_single_val = False
+        if isinstance(arg_arr, (float, int)):
+            arg_arr = np.array([arg_arr])
+            is_single_val = True
+        result = np.zeros_like(arg_arr)
+
+        gam = 7e2
+        # for smaller eps result array remains 0
+        # for small enough args but bigger than eps we compute the given formula
+        sel = np.logical_and(self.eps < arg_arr, gam > arg_arr)
+        result[sel] = np.divide(
+            special.iv(self.ncChi.num_channels, arg_arr[sel]),
+            special.iv(self.ncChi.num_channels - 1, arg_arr[sel])
+        )
+        # for big args we linearly approach asymptote to 1 @ input arg 30000 (random choice
+        len_asymptote = 3e4
+        start_val = np.divide(
+            special.iv(self.ncChi.num_channels, gam),
+            special.iv(self.ncChi.num_channels - 1, gam)
+        )
+        sel = arg_arr >= gam
+        result[sel] = start_val + (1.0 - start_val) / len_asymptote * (arg_arr[sel] - gam)
+        if is_single_val:
+            result = result[0]
+        return result
+
+    def _y_tilde(self, y_obs: typing.Union[np.ndarray, float, int], x_approx: typing.Union[np.ndarray, float, int]
+                 ) -> typing.Union[np.ndarray, float]:
+        arg = np.multiply(
+            y_obs,
+            x_approx
+        ) / self.ncChi.sigma**2
+        factor = self._majorante(arg)
+        return y_obs * factor
+
+    @staticmethod
+    def _tv_penalty(x_input_arr: np.ndarray, shape: tuple = None, dim_1d:bool = False):
+        """
+            presume dim [x, y, z, t]
+            want to compute the penalty wrt 2d xy plane
+            """
+        if shape is not None and not dim_1d:
+            x_input_arr = np.reshape(x_input_arr, shape)
+        # horizontal computation
+        h = np.diff(x_input_arr, axis=0)
+        if dim_1d:
+            v = 0.0
+        else:
+            v = np.diff(x_input_arr, axis=1)
+
+        return np.linalg.norm(h) + np.linalg.norm(v)
+
+    def _minimizer(self, data_voxels: np.ndarray, denoized_voxels: np.ndarray, shape: tuple = None, dim_1d: bool = False):
+        ls = denoized_voxels - self._y_tilde(y_obs=data_voxels, x_approx=denoized_voxels)
+        tv = self._tv_penalty(denoized_voxels, shape=shape, dim_1d=dim_1d)
+        return ls + self.lambda_regularize_weight * tv
+
+    def mmIteration(self):
+        # want 2d planes for regularization, z/t axis in first dim
+        data = np.moveaxis(np.reshape(self.niiData, (*self.niiImg.shape[:2], -1)), -1, 0)
+        self.reNiiData = np.zeros_like(data)
+        bar = tqdm.trange(data.shape[0], desc="Processing Slices and Echoes")
+        for d_idx in bar:
+
+            ds = data[d_idx].shape
+
+            for row_idx in range(ds[0]):
+                d = data[d_idx][row_idx]
+                logModule.info(f"processing slice {d_idx}, row {row_idx}")
+
+                def func_to_minimize(approx_noise_free_voxels: np.ndarray):
+                    return self._minimizer(d, approx_noise_free_voxels, shape=ds, dim_1d=True)
+
+                l = func_to_minimize(d)
+                res = optimize.least_squares(func_to_minimize, d, bounds=(0, np.inf))
+
+                for _ in range(self.num_iter):
+                    res = optimize.least_squares(func_to_minimize, res.x, bounds=(0, np.inf))
+
+                self.reNiiData[d_idx, row_idx] = res.x
+
+        self.reNiiData = np.moveaxis(self.reNiiData, 0, -1)
+        self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
 
 
 class DatabaseResampler:
