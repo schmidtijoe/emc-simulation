@@ -19,6 +19,9 @@ class FileConfiguration(helpers.Serializable):
 @dataclass
 class FitParameters(helpers.Serializable):
     ResamplingOption: str = choice("re_db", "re_data", "keep", default="re_data")
+    ResampleDataNumIterations: int = 3
+    ResampleDataSimple: bool = False
+    ResampleDataRegularizationLambda: float = 0.1
     FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")
     NoiseBackgroundEstimateCornerFraction: float = 8.0
     NoiseBackgroundEstimateVisualize: bool = False

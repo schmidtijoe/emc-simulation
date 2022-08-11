@@ -10,7 +10,8 @@ import nibabel as nib
 import numpy as np
 import pandas as pd
 
-from scipy import special, optimize
+from emc_fit.noise import chambollepock
+from scipy import special
 from emc_sim import utils
 from emc_fit.noise import handlers
 from emc_fit import options
@@ -21,6 +22,8 @@ from itertools import chain
 from pathlib import Path
 import tqdm
 
+import matplotlib.pyplot as plt
+
 logModule = logging.getLogger(__name__)
 
 
@@ -28,6 +31,7 @@ class DataResampler:
     """
     Class for Streamlining Noise Mean resampling of nii Input data
     """
+
     def __init__(self, fitOpts: options.FitOptions):
         logModule.info(f"_______data resampler_______")
         logModule.info(f"____________________________")
@@ -50,37 +54,21 @@ class DataResampler:
         # misc
         self.eps = 1e-5
         self._time_formatter = "%H:%M:%S"
-        self.num_iter = 10
-        self.lambda_regularize_weight = 0.01
 
-        # build array between 0 and max value
-        # self.interpol_array = np.arange(np.max(self.niiData))
-        # self.interpol_mean = self.ncChi.mean(self.interpol_array)
-        # provide 1d
-        self.niiData = self.niiData.flatten()
-        self.reNiiData = np.zeros_like(self.niiData)
         # first init
-        self.iterate_approximation(eps=False)
+        self.reNiiData = self.niiData.copy()
         # multiprocessing, leave headroom but take at least 4
         self.numCpus = np.max([4, mp.cpu_count() - fitOpts.opts.ProcessingHeadroomMultiprocessing])
         self.multiprocessing = fitOpts.opts.Multiprocessing
         logModule.info("Finished Init")
 
-    # def _wrap_resample(self, args):
-    #     """
-    #     wrap resampling function for multithreading
-    #     """
-    #     index_list, data_list, interpol_mean = args
-    #     data = np.array(data_list)
-    #     sampled_arr = np.abs(data[np.newaxis] - interpol_mean[:, np.newaxis])
-    #     # we look for the smallest of those differences
-    #     fit_idx = np.argmin(sampled_arr, axis=0)
-    #     # we take the interpolation value corresponding to the index
-    #     interpolated_data = self.interpol_array[fit_idx]
-    #     return interpolated_data, index_list
-
-    def iterate_approximation(self, eps: bool = True):
+    def _simple_iterate_approximation(self, eps: bool = True, return_stats: bool = True):
+        """
+        Simple iteration -> approximate denoised voxels by taking noised data as nc_chi distribution - mean
+        of denoised voxels
+        """
         if eps:
+            # take only voxels not already mapped to 0
             selection = self.reNiiData > self.eps
         else:
             selection = self.niiData >= 0.0
@@ -90,20 +78,25 @@ class DataResampler:
         result = np.add(self.reNiiData[selection], diff)
         result = np.clip(result, 0.0, np.max(result))
         self.reNiiData[selection] = result
-        return np.count_nonzero(selection), max_diff
+        if return_stats:
+            return np.count_nonzero(selection), max_diff
 
     def resample(self):
         logModule.info("___Start Processing___")
         start = dt.datetime.now()
         logModule.info(f"start time: {start.strftime(self._time_formatter)}")
-        # bar = tqdm.trange(self.num_iter)
-        # for _ in bar:
-        #     num_curves, max_diff = self.iterate_approximation()
-        #     bar.set_postfix_str(f"maximum offset of approx mean for {num_curves} curves: {max_diff:.4f}")
-        #
-        # # reshaping
-        # self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
-        self.mmIteration()
+
+        if self.fitOpts.opts.ResampleDataSimple:
+            # use simple approximation with noise mean
+            bar = tqdm.trange(self.fitOpts.opts.ResampleDataNumIterations)
+            for _ in bar:
+                num_curves, max_diff = self._simple_iterate_approximation(return_stats=True)
+                bar.set_postfix_str(f"maximum offset of approx mean for {num_curves} curves: {max_diff:.4f}")
+
+            # reshaping
+        else:
+            # use maximum likelihood majorize - minimize approach
+            self.mmIteration()
 
         end = dt.datetime.now()
         logModule.info(f"Finished: {end.strftime(self._time_formatter)}")
@@ -123,6 +116,9 @@ class DataResampler:
         """
         get resampled data
         """
+        # check for shape
+        if not self.reNiiData.shape == self.niiImg.shape:
+            self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
         return self.reNiiData, self.niiImg
 
     def _majorante(self, arg_arr: typing.Union[np.ndarray, float, int]) -> typing.Union[np.ndarray, float]:
@@ -157,58 +153,50 @@ class DataResampler:
         arg = np.multiply(
             y_obs,
             x_approx
-        ) / self.ncChi.sigma**2
+        ) / self.ncChi.sigma ** 2
         factor = self._majorante(arg)
         return y_obs * factor
 
-    @staticmethod
-    def _tv_penalty(x_input_arr: np.ndarray, shape: tuple = None, dim_1d:bool = False):
-        """
-            presume dim [x, y, z, t]
-            want to compute the penalty wrt 2d xy plane
-            """
-        if shape is not None and not dim_1d:
-            x_input_arr = np.reshape(x_input_arr, shape)
-        # horizontal computation
-        h = np.diff(x_input_arr, axis=0)
-        if dim_1d:
-            v = 0.0
-        else:
-            v = np.diff(x_input_arr, axis=1)
+    def test_ytilde(self, y_obs, x_approx):
+        return self._y_tilde(y_obs=y_obs, x_approx=x_approx)
 
-        return np.linalg.norm(h) + np.linalg.norm(v)
-
-    def _minimizer(self, data_voxels: np.ndarray, denoized_voxels: np.ndarray, shape: tuple = None, dim_1d: bool = False):
-        ls = denoized_voxels - self._y_tilde(y_obs=data_voxels, x_approx=denoized_voxels)
-        tv = self._tv_penalty(denoized_voxels, shape=shape, dim_1d=dim_1d)
-        return ls + self.lambda_regularize_weight * tv
-
+    @property
     def mmIteration(self):
-        # want 2d planes for regularization, z/t axis in first dim
-        data = np.moveaxis(np.reshape(self.niiData, (*self.niiImg.shape[:2], -1)), -1, 0)
-        self.reNiiData = np.zeros_like(data)
-        bar = tqdm.trange(data.shape[0], desc="Processing Slices and Echoes")
-        for d_idx in bar:
+        # want at least 2d planes for regularization
+        if self.reNiiData.shape.__len__() < 2:
+            if self.niiImg.shape.__len__() >= 2:
+                self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
+            else:
+                logModule.error(f"Data Shape {self.reNiiData.shape} "
+                                f"found not compatible with TV regularization across voxels: "
+                                f"at least 2D Data needed")
+                raise AttributeError(f"Data Shape {self.reNiiData.shape} "
+                                     f"found not compatible with TV regularization across voxels: "
+                                     f"at least 2D Data needed")
 
-            ds = data[d_idx].shape
+        if self.niiData.shape.__len__() < 4:
+            logModule.info(f"Data shape: {self.niiData.shape} - 3D: assuming no echoes")
 
-            for row_idx in range(ds[0]):
-                d = data[d_idx][row_idx]
-                logModule.info(f"processing slice {d_idx}, row {row_idx}")
-
-                def func_to_minimize(approx_noise_free_voxels: np.ndarray):
-                    return self._minimizer(d, approx_noise_free_voxels, shape=ds, dim_1d=True)
-
-                l = func_to_minimize(d)
-                res = optimize.least_squares(func_to_minimize, d, bounds=(0, np.inf))
-
-                for _ in range(self.num_iter):
-                    res = optimize.least_squares(func_to_minimize, res.x, bounds=(0, np.inf))
-
-                self.reNiiData[d_idx, row_idx] = res.x
-
-        self.reNiiData = np.moveaxis(self.reNiiData, 0, -1)
-        self.reNiiData = np.reshape(self.reNiiData, self.niiImg.shape)
+        else:
+            logModule.info(f"Data shape: {self.niiData.shape} - 4D: assuming {self.niiData.shape[-1]} echoes")
+            bar = tqdm.trange(self.niiData.shape[-1], desc="Processing Echoes", ncols=100)
+            for echo_idx in bar:
+                # choose 3d volume as input data
+                data = self.niiData[:, :, :, echo_idx].copy()
+                # initialize approximation with same set
+                denoised_data_approx = data.copy()
+                iter_bar = tqdm.trange(self.fitOpts.opts.ResampleDataNumIterations, desc="iteration", ncols=50)
+                for _ in iter_bar:
+                    # set majorante = y tilde from data and previous parameter approximation
+                    data = self._y_tilde(y_obs=data, x_approx=denoised_data_approx)
+                    # solve ls with regularization -> argmin_x(denoized data)>0  || K(x) - y_tilde ||_2^2 + TV(x)
+                    denoised_data_approx = chambollepock.chambolle_pock_tv(
+                        data=data,
+                        Lambda=self.fitOpts.opts.ResampleDataRegularizationLambda,
+                        n_it=30,
+                        return_all=False
+                    )
+                self.reNiiData[:, :, :, echo_idx] = denoised_data_approx
 
 
 class DatabaseResampler:
@@ -327,3 +315,92 @@ def resampleData(fitOpts: options.FitOptions) -> (np.ndarray, nib.Nifti1Image):
         dRe.save_resampled()
     niiData, niiImg = dRe.get_data()
     return niiData, niiImg
+
+
+def plot(data, x, en):
+    data_hist, data_bins = np.histogram(data, bins=1000)
+    data_bins = data_bins[1:] - np.diff(data_bins)
+
+    x_hist, x_bins = np.histogram(x, bins=1000)
+    x_bins = x_bins[1:] - np.diff(x_bins)
+
+    fig = plt.figure(figsize = (13, 6))
+    gs = fig.add_gridspec(2,6, height_ratios=[3,1])
+
+    ax = fig.add_subplot(gs[0,:2])
+    ax.axis(False)
+    ax.grid(False)
+    img = ax.imshow(data)
+    plt.colorbar(img, ax=ax, shrink=0.5)
+
+    ax = fig.add_subplot(gs[0, 2:4])
+    ax.axis(False)
+    ax.grid(False)
+    img = ax.imshow(x)
+    plt.colorbar(img, ax=ax, shrink=0.5)
+
+    ax = fig.add_subplot(gs[0,4:])
+    ax.axis(False)
+    ax.grid(False)
+    img = ax.imshow((data - x) / data)
+    plt.colorbar(img, ax=ax, shrink=0.5)
+
+    ax = fig.add_subplot(gs[1, :2])
+    ax.plot(np.arange(len(en)), en)
+
+    ax = fig.add_subplot(gs[1, 2:4])
+    ax.set_ylim(0, np.max(data_hist[100:]))
+    ax.fill_between(data_bins, data_hist)
+
+    ax = fig.add_subplot(gs[1, 4:])
+    ax.fill_between(x_bins, x_hist)
+    ax.set_ylim(0, np.max(x_hist[20:]))
+
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == '__main__':
+    # set up logging
+    logging.basicConfig(format='%(asctime)s %(levelname)s :: %(name)s --  %(message)s',
+                        datefmt='%I:%M:%S', level=logging.INFO)
+
+    configFile = "D:\\Daten\\01_Work\\11_owncloud\\ds_mese_cbs_js\\" \
+                 "02_postmortem_scan_data\\01\\t2_semc_0p5_30slice\\fit_config_l2_win.json"
+    dataPath = "D:\\Daten\\01_Work\\11_owncloud\\ds_mese_cbs_js\\" \
+               "02_postmortem_scan_data\\01\\t2_semc_0p5_30slice\\t2_semc_0p5_30slice.nii"
+    path = Path(configFile).absolute()
+    fitSet = options.FitOptions.load(path)
+    dRe = DataResampler(fitSet)
+
+    dataPath = Path(dataPath).absolute()
+    niiImg = nib.load(dataPath)
+    niiData = np.moveaxis(niiImg.get_fdata(), 1, 2)
+
+    # choose echo and slice
+    echo = 2
+    z = 80
+    echoImg = niiData[:, :, z, echo - 1]
+
+    # test native version
+    y = echoImg.copy()
+    x = echoImg.copy()
+
+    def op_id(data):
+        return data
+
+    for idx in range(4):
+        y = dRe.test_ytilde(y_obs=y, x_approx=x)
+        en, x = chambollepock.chambolle_pock_tv(y, op_id, op_id, 0.1, n_it=30)
+
+    plot(niiImg, x, en)
+
+    # test np version
+    y = echoImg.copy()
+    x = echoImg.copy()
+
+    for idx in range(4):
+        y = dRe.test_ytilde(y_obs=y, x_approx=x)
+        en, x = chambollepock.chambolle_pock_tv(y, 0.1, n_it=30)
+
+    plot(niiImg, x, en)
