@@ -184,10 +184,11 @@ class DataResampler:
             #                 data = self.niiData[:, :, :, echo_idx].copy()
             echo_num = self.niiData.shape[-1]
             mp_list = [[self.niiData[:, :, :, k], k] for k in range(echo_num)]
-
+            num_cpus = np.min([echo_num, self.numCpus])
             if self.multiprocessing:
                 # results = parallelbar.progress_imap(self._echo_iteration, mp_list, n_cpu=4, core_progress=True, total=echo_num)
-                with mp.Pool(4) as pool:
+                logModule.info(f"using {num_cpus} CPU for processing {echo_num} echo images")
+                with mp.Pool(num_cpus) as pool:
                     results = list(tqdm.tqdm(pool.imap_unordered(self._echo_iteration, mp_list), total=echo_num))
             else:
 

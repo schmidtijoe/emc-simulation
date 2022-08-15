@@ -5,6 +5,9 @@ from emc_sim import utils
 from pathlib import Path
 import json
 import nibabel as nib
+import logging
+
+logModule = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,9 +70,11 @@ class FitOptions:
         # save
         path = Path(self.config.FitDataOutputPath).absolute()
         utils.create_folder_ifn_exist(path)
+        save_path = path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii")
+        logModule.info(f"Saving File: {save_path}")
 
         niiImg = nib.Nifti1Image(fitArray, niiImg.affine)
-        nib.save(niiImg, path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii"))
+        nib.save(niiImg, save_path)
 
 
 def createCmdLineParser() -> (ArgumentParser, ArgumentParser.parse_args):

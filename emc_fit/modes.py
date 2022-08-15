@@ -17,7 +17,7 @@ import multiprocessing as mp
 logModule = logging.getLogger(__name__)
 
 
-class L2Fit:
+class Fit:
     def __init__(self, nifti_data, pandas_database, numpy_database):
         self.pd_db = pandas_database
         self.np_db = numpy_database
@@ -38,15 +38,25 @@ class L2Fit:
             logModule.error(err)
             raise AttributeError(err)
         self.num_curves = self.nii_data.shape[0]
-        self.chunk_size = 2000
-        self.chunk_num = int(np.ceil(self.num_curves / self.chunk_size))
 
         # l2 normalize
+        logModule.info("L2 normalize data")
         self.nii_data = utils.normalize_array(self.nii_data, normalization="l2")
         self.np_db = utils.normalize_array(self.np_db, normalization="l2")
 
         self.t2_map = np.zeros(self.num_curves)
         self.b1_map = np.zeros(self.num_curves)
+
+    def get_maps(self) -> (np.ndarray, np.ndarray):
+        return self.t2_map, self.b1_map
+
+
+class L2Fit(Fit):
+    def __init__(self, nifti_data, pandas_database, numpy_database):
+        super(L2Fit, self).__init__(nifti_data, pandas_database, numpy_database)
+
+        self.chunk_size = 2000
+        self.chunk_num = int(np.ceil(self.num_curves / self.chunk_size))
 
     def fit(self):
         logModule.info(f"__ Fitting L2 Norm Minimization __")
@@ -90,30 +100,12 @@ class L2Fit:
             self.t2_map[chunk_idx] = self.pd_db.iloc[fit_idx].t2
             self.b1_map[chunk_idx] = self.pd_db.iloc[fit_idx].b1
 
-    def get_maps(self) -> (np.ndarray, np.ndarray):
-        return self.t2_map, self.b1_map
 
-
-class PearsonFit:
+class PearsonFit(Fit):
     def __init__(self, nifti_data, pandas_database, numpy_database):
+        super(PearsonFit, self).__init__(nifti_data, pandas_database, numpy_database)
         logModule.info("____________")
         logModule.info("pearson correlation coefficient emc_fit")
-        self.pd_db = pandas_database
-        self.np_db = numpy_database
-        self.nii_data = nifti_data
-        # data supposed to be 2d and max normed to 1
-        if nifti_data.shape.__len__() != 2:
-            logModule.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
-            logModule.info("Reshaping")
-            self.nii_data = np.reshape(nifti_data, [-1, nifti_data.shape[-1]])
-        if np.max(nifti_data) > 1.001:
-            logModule.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
-            logModule.info("Rescaling")
-            self.nii_data = utils.normalize_array(self.nii_data)
-        self.num_curves = self.nii_data.shape[0]
-
-        self.t2_map = np.zeros(self.num_curves)
-        self.b1_map = np.zeros(self.num_curves)
 
     @staticmethod
     def pearsons_multidim(array_a, array_b):
@@ -145,32 +137,10 @@ class PearsonFit:
 
         logModule.info("Finished!")
 
-    def get_maps(self) -> (np.ndarray, np.ndarray):
-        return self.t2_map, self.b1_map
 
-
-class MleFit:
+class MleFit(Fit):
     def __init__(self, nifti_data, pandas_database, numpy_database):
-        self.pd_db = pandas_database
-        self.np_db = numpy_database
-        self.nii_data = nifti_data
-        logModule.info("____________")
-        logModule.info("Maximum likelihood emc_fit")
-        # data supposed to be 2d and max normed to 1
-        if nifti_data.shape.__len__() != 2:
-            logModule.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
-            logModule.info("Reshaping")
-            self.nii_data = np.reshape(nifti_data, [-1, nifti_data.shape[-1]])
-        if np.max(nifti_data) > 1.001:
-            logModule.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
-            logModule.info("Rescaling")
-            self.nii_data = utils.normalize_array(self.nii_data)
-
-        self.t2_map = None
-        self.b1_map = None
-
-    def get_maps(self) -> (np.ndarray, np.ndarray):
-        return self.t2_map, self.b1_map
+        super(MleFit, self).__init__(nifti_data, pandas_database, numpy_database)
 
     def fit(self):
         logModule.info(f"__ Fitting MLE __")
