@@ -48,21 +48,21 @@ def select_fit_function(fitOpts: options.FitOptions,
         logging.info(f"reshaping data; shape {niiData.shape} ")
     if fitOpts.opts.FitMetric == "threshold":
         return np.empty(0), np.empty(0)
-    if fitOpts.opts.FitMetric == "pearson":
+    elif fitOpts.opts.FitMetric == "pearson":
         pearson_fit = modes.PearsonFit(
             nifti_data=niiData, pandas_database=pandas_database, numpy_database=numpy_database
         )
         pearson_fit.fit()
         return pearson_fit.get_maps()
-    if fitOpts.opts.FitMetric == "mle":
+    elif fitOpts.opts.FitMetric == "mle":
         mle_fit = modes.MleFit(
             nifti_data=niiData, pandas_database=pandas_database, numpy_database=numpy_database
         )
         mle_fit.fit()
         return mle_fit.get_maps()
-    if fitOpts.opts.FitMetric == "l2":
+    elif fitOpts.opts.FitMetric == "l2":
         l2_fit = modes.L2Fit(nifti_data=niiData, pandas_database=pandas_database, numpy_database=numpy_database)
-        l2_fit.fit()
+        l2_fit.fit_mp()
         return l2_fit.get_maps()
     else:
         logging.error("Unrecognized Fitting Option!")
@@ -74,7 +74,7 @@ def main(fitOpts: options.FitOptions):
     # choose resampling method: resample data or resample database
     niiData, niiImg, pd_db, np_db = select_resampling_method(fitOpts)
 
-    # select fitting option
+    # # select fitting option
     t2_map, b1_map = select_fit_function(
         fitOpts=fitOpts, niiData=niiData,
         pandas_database=pd_db, numpy_database=np_db

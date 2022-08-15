@@ -21,7 +21,7 @@ from operator import itemgetter
 from itertools import chain
 from pathlib import Path
 import tqdm
-
+from parallelbar import parallelbar
 import matplotlib.pyplot as plt
 
 logModule = logging.getLogger(__name__)
@@ -160,7 +160,6 @@ class DataResampler:
     def test_ytilde(self, y_obs, x_approx):
         return self._y_tilde(y_obs=y_obs, x_approx=x_approx)
 
-    @property
     def mmIteration(self):
         # want at least 2d planes for regularization
         if self.reNiiData.shape.__len__() < 2:
@@ -179,24 +178,44 @@ class DataResampler:
 
         else:
             logModule.info(f"Data shape: {self.niiData.shape} - 4D: assuming {self.niiData.shape[-1]} echoes")
-            bar = tqdm.trange(self.niiData.shape[-1], desc="Processing Echoes", ncols=100)
-            for echo_idx in bar:
-                # choose 3d volume as input data
-                data = self.niiData[:, :, :, echo_idx].copy()
-                # initialize approximation with same set
-                denoised_data_approx = data.copy()
-                iter_bar = tqdm.trange(self.fitOpts.opts.ResampleDataNumIterations, desc="iteration", ncols=50)
-                for _ in iter_bar:
-                    # set majorante = y tilde from data and previous parameter approximation
-                    data = self._y_tilde(y_obs=data, x_approx=denoised_data_approx)
-                    # solve ls with regularization -> argmin_x(denoized data)>0  || K(x) - y_tilde ||_2^2 + TV(x)
-                    denoised_data_approx = chambollepock.chambolle_pock_tv(
-                        data=data,
-                        Lambda=self.fitOpts.opts.ResampleDataRegularizationLambda,
-                        n_it=30,
-                        return_all=False
-                    )
-                self.reNiiData[:, :, :, echo_idx] = denoised_data_approx
+
+            # bar = tqdm.trange(self.niiData.shape[-1], desc="Processing Echoes", ncols=100)
+            # for echo_idx in bar:
+            #     # choose 3d volume as input data
+            #                 data = self.niiData[:, :, :, echo_idx].copy()
+            echo_num = self.niiData.shape[-1]
+            mp_list = [[self.niiData[:, :, :, k], k] for k in range(echo_num)]
+
+            if self.multiprocessing:
+                # results = parallelbar.progress_imap(self._echo_iteration, mp_list, n_cpu=4, core_progress=True, total=echo_num)
+                with mp.Pool(4) as pool:
+                    results = list(tqdm.tqdm(pool.imap_unordered(self._echo_iteration, mp_list), total=echo_num))
+            else:
+
+                results = []
+                for _, arg in enumerate(tqdm.tqdm(mp_list)):
+                    results.append(self._echo_iteration(arg))
+
+            for res in results:
+                self.reNiiData[:, :, :, res[0]] = res[1]
+
+    def _echo_iteration(self, args):
+        echoImg, echo_idx = args
+        denoised_data_approx = echoImg.copy()
+
+        # initialize approximation with same set
+        # iter_bar = tqdm.trange(self.fitOpts.opts.ResampleDataNumIterations, desc="iteration", ncols=50)
+        for _ in range(self.fitOpts.opts.ResampleDataNumIterations):
+            # set majorante = y tilde from data and previous parameter approximation
+            data = self._y_tilde(y_obs=echoImg, x_approx=denoised_data_approx)
+            # solve ls with regularization -> argmin_x(denoized data)>0  || K(x) - y_tilde ||_2^2 + TV(x)
+            denoised_data_approx = chambollepock.chambolle_pock_tv(
+                data=data,
+                Lambda=self.fitOpts.opts.ResampleDataRegularizationLambda,
+                n_it=30,
+                return_all=False
+            )
+        return echo_idx, denoised_data_approx
 
 
 class DatabaseResampler:
@@ -324,10 +343,10 @@ def plot(data, x, en):
     x_hist, x_bins = np.histogram(x, bins=1000)
     x_bins = x_bins[1:] - np.diff(x_bins)
 
-    fig = plt.figure(figsize = (13, 6))
-    gs = fig.add_gridspec(2,6, height_ratios=[3,1])
+    fig = plt.figure(figsize=(13, 6))
+    gs = fig.add_gridspec(2, 6, height_ratios=[3, 1])
 
-    ax = fig.add_subplot(gs[0,:2])
+    ax = fig.add_subplot(gs[0, :2])
     ax.axis(False)
     ax.grid(False)
     img = ax.imshow(data)
@@ -339,7 +358,7 @@ def plot(data, x, en):
     img = ax.imshow(x)
     plt.colorbar(img, ax=ax, shrink=0.5)
 
-    ax = fig.add_subplot(gs[0,4:])
+    ax = fig.add_subplot(gs[0, 4:])
     ax.axis(False)
     ax.grid(False)
     img = ax.imshow((data - x) / data)
@@ -367,40 +386,9 @@ if __name__ == '__main__':
 
     configFile = "D:\\Daten\\01_Work\\11_owncloud\\ds_mese_cbs_js\\" \
                  "02_postmortem_scan_data\\01\\t2_semc_0p5_30slice\\fit_config_l2_win.json"
-    dataPath = "D:\\Daten\\01_Work\\11_owncloud\\ds_mese_cbs_js\\" \
-               "02_postmortem_scan_data\\01\\t2_semc_0p5_30slice\\t2_semc_0p5_30slice.nii"
     path = Path(configFile).absolute()
     fitSet = options.FitOptions.load(path)
     dRe = DataResampler(fitSet)
+    dRe.resample()
+    dRe.save_resampled()
 
-    dataPath = Path(dataPath).absolute()
-    niiImg = nib.load(dataPath)
-    niiData = np.moveaxis(niiImg.get_fdata(), 1, 2)
-
-    # choose echo and slice
-    echo = 2
-    z = 80
-    echoImg = niiData[:, :, z, echo - 1]
-
-    # test native version
-    y = echoImg.copy()
-    x = echoImg.copy()
-
-    def op_id(data):
-        return data
-
-    for idx in range(4):
-        y = dRe.test_ytilde(y_obs=y, x_approx=x)
-        en, x = chambollepock.chambolle_pock_tv(y, op_id, op_id, 0.1, n_it=30)
-
-    plot(niiImg, x, en)
-
-    # test np version
-    y = echoImg.copy()
-    x = echoImg.copy()
-
-    for idx in range(4):
-        y = dRe.test_ytilde(y_obs=y, x_approx=x)
-        en, x = chambollepock.chambolle_pock_tv(y, 0.1, n_it=30)
-
-    plot(niiImg, x, en)

@@ -12,6 +12,7 @@ from emc_sim import utils
 import numpy as np
 import tqdm
 from scipy import stats
+import multiprocessing as mp
 
 logModule = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class L2Fit:
         logModule.info("l2 norm minimization emc_fit")
         # data supposed to be 2d and max normed to 1
         if nifti_data.shape.__len__() > 2:
-            logModule.info(f"Nifti Input Data assumed shape not 2D; shape: {nifti_data.shape}")
+            logModule.info(f"Nifti Input Data shape not 2D; shape: {nifti_data.shape}")
             logModule.info("Reshaping")
             self.nii_data = np.reshape(nifti_data, [-1, nifti_data.shape[-1]])
         if np.max(nifti_data) > 1.001:
@@ -37,6 +38,12 @@ class L2Fit:
             logModule.error(err)
             raise AttributeError(err)
         self.num_curves = self.nii_data.shape[0]
+        self.chunk_size = 2000
+        self.chunk_num = int(np.ceil(self.num_curves / self.chunk_size))
+
+        # l2 normalize
+        self.nii_data = utils.normalize_array(self.nii_data, normalization="l2")
+        self.np_db = utils.normalize_array(self.np_db, normalization="l2")
 
         self.t2_map = np.zeros(self.num_curves)
         self.b1_map = np.zeros(self.num_curves)
@@ -45,17 +52,43 @@ class L2Fit:
         logModule.info(f"__ Fitting L2 Norm Minimization __")
         # we do the fitting in blocks, (whole volume seems to be to expensive)
         # data shape = [num_curves, num_echoes]
+        chunks = np.array_split(np.arange(self.num_curves), self.chunk_num)
         # need some timing checks
-        for data_idx in tqdm.trange(self.num_curves):
-            data = self.nii_data[data_idx]
-            differenceCurveDb = self.np_db - data
+
+        for chunk_idx in tqdm.trange(self.chunk_num):
+            data = self.nii_data[chunks[chunk_idx]]
+            # first axis data, second database
+            differenceCurveDb = self.np_db[np.newaxis, :] - data[:, np.newaxis]
             l2 = np.linalg.norm(differenceCurveDb, axis=-1)
             fit_idx = np.argmin(l2, axis=-1)
 
-            self.t2_map[data_idx] = self.pd_db.iloc[fit_idx].t2
-            self.b1_map[data_idx] = self.pd_db.iloc[fit_idx].b1
+            self.t2_map[chunks[chunk_idx]] = self.pd_db.iloc[fit_idx].t2
+            self.b1_map[chunks[chunk_idx]] = self.pd_db.iloc[fit_idx].b1
 
         logModule.info("Finished!")
+
+    @staticmethod
+    def _wrap_l2(args):
+        idx_arr, data_arr, db_arr = args
+        differenceCurveDb = db_arr[np.newaxis, :] - data_arr[:, np.newaxis]
+        l2 = np.linalg.norm(differenceCurveDb, axis=-1)
+        fit_idx = np.argmin(l2, axis=-1)
+        return idx_arr, fit_idx
+
+    def fit_mp(self):
+        num_cpus = np.max([mp.cpu_count() - 16, 4])
+        logModule.info(f"multiprocessing, using {num_cpus} CPU")
+        chunks = np.array_split(np.arange(self.num_curves), self.chunk_num)
+        mp_list = [(chunks[i], self.nii_data[chunks[i]], self.np_db) for i in range(len(chunks))]
+
+        with mp.Pool(num_cpus) as pool:
+            results = list(tqdm.tqdm(pool.imap_unordered(self._wrap_l2, mp_list), total=self.chunk_num))
+
+        for res in results:
+            chunk_idx = res[0]
+            fit_idx = res[1]
+            self.t2_map[chunk_idx] = self.pd_db.iloc[fit_idx].t2
+            self.b1_map[chunk_idx] = self.pd_db.iloc[fit_idx].b1
 
     def get_maps(self) -> (np.ndarray, np.ndarray):
         return self.t2_map, self.b1_map

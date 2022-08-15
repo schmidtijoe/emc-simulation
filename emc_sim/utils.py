@@ -82,17 +82,26 @@ def load_database(path_to_file: Union[str, Path], append_zero: bool = True, norm
         sim_dict = loader.function(FILE)
 
     df = pd.DataFrame(sim_dict)
-    len_b1s = len(df.b1.unique().astype(float))
-    len_t1s = len(df.t1.unique().astype(float))
-    len_ds = len(df.d.unique().astype(float))
-    dim_expand_needed = len_ds * len_b1s * len_t1s
     if append_zero:
-        for _ in range(dim_expand_needed):
+        b1s = df.b1.unique().astype(float)
+        t1s = df.t1.unique().astype(float)
+        ds = df.d.unique().astype(float)
+        for b1, t1, d in [(b1_val, t1_val, d_val) for b1_val in b1s for t1_val in t1s for d_val in ds]:
+            # when normalizing 0 curves will be left unchanged. Data curves are unlikely 0
+            temp_row = df.iloc[0].copy()
+            temp_row.emcSignal = np.zeros([len(temp_row.emcSignal)])
+            temp_row.t2 = 1e-3
+            temp_row.b1 = b1
+            temp_row.t1 = t1
+            temp_row.d = d
+            df.loc[len(df.index)] = temp_row
+            # still append 0 curves that wont get scaled -> more useful for the pearson fitting
             temp_row = df.iloc[0].copy()
             temp_row.emcSignal = np.zeros([len(temp_row.emcSignal)])
             temp_row.t2 = 0.0
-            temp_row.b1 = 1.0
-            temp_row.t1 = 1.5
+            temp_row.b1 = b1
+            temp_row.t1 = t1
+            temp_row.d = d
             df.loc[len(df.index)] = temp_row
         df = df.reset_index(drop=True)
 

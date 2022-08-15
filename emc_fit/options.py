@@ -18,7 +18,7 @@ class FileConfiguration(helpers.Serializable):
 
 @dataclass
 class FitParameters(helpers.Serializable):
-    ResamplingOption: str = choice("re_db", "re_data", "keep", default="re_data")
+    ResamplingOption: str = choice("re_db", "re_data", "keep", "load_resampled", default="re_data")
     ResampleDataNumIterations: int = 3
     ResampleDataSimple: bool = False
     ResampleDataRegularizationLambda: float = 0.1
