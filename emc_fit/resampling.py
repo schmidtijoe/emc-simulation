@@ -21,7 +21,6 @@ from operator import itemgetter
 from itertools import chain
 from pathlib import Path
 import tqdm
-from parallelbar import parallelbar
 import matplotlib.pyplot as plt
 
 logModule = logging.getLogger(__name__)
