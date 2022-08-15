@@ -2,6 +2,7 @@
 
 A Python Adaption of the Echo Modulation Curve Algorithm, a Bloch Simulation based Reconsturction for Multi-Echo Spin-Echo Data (
 [Ben-Eliezer et al. 2015](https://doi.org/10.1002/mrm.25156) ).
+When using this for Multi-Echo Spin-Echo data make sure to cite this paper.
 
 #### When to use
 - Reconstruction of Multi-Echo Spin-Echo (MESE) slice selective MRI Sequences (possible extension to other slice selective modalities)
