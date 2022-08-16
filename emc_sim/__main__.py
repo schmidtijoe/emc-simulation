@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 import pandas as pd
 from emc_sim import options, simulations, prep
 import multiprocessing as mp

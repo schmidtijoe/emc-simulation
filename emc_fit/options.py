@@ -1,5 +1,5 @@
 import numpy as np
-from simple_parsing import ArgumentParser, helpers, choice
+from simple_parsing import ArgumentParser, helpers, choice, field
 from dataclasses import dataclass
 from emc_sim import utils
 from pathlib import Path
@@ -13,10 +13,14 @@ logModule = logging.getLogger(__name__)
 @dataclass
 class FileConfiguration(helpers.Serializable):
     ConfigFile: str = ""
-    NiiDataPath: str = ""
+    NiiDataPath: str = field(alias=["-i"], default="")
     DatabasePath: str = ""
-    ResampledDataOutputPath: str = ""
-    FitDataOutputPath: str = ""
+    OutputPath: str = field(alias=["-o"], default="")
+
+    def __post_init__(self):
+        op = Path(self.OutputPath).absolute()
+        if not op.is_dir():
+            self.OutputPath = str(op.parent)
 
 
 @dataclass
@@ -55,9 +59,23 @@ class FitOptions:
         :return: FitSettings instance
         """
         fitSet = cls(config=args.config, opts=args.opts)
+        # catch non defaults
+        def_config = FileConfiguration().to_dict()
+        def_opts = FitParameters().to_dict()
+        non_def = {}
+        for key, value in args.config.to_dict().items():
+            if def_config[key] != value:
+                non_def[key] = value
+        for key, value in args.opts.to_dict().items():
+            if def_opts[key] != value:
+                non_def[key] = value
+        # read in config file if provided
         if fitSet.config.ConfigFile:
             path = Path(fitSet.config.ConfigFile).absolute()
             fitSet = FitOptions.load(path)
+        # fill in non defaults, aka additional provided
+        for key, value in non_def.items():
+            fitSet.__setattr__(key, value)
         return fitSet
 
     def saveFit(self, fitArray: np.ndarray, niiImg: nib.Nifti1Image, name: str):
@@ -68,7 +86,7 @@ class FitOptions:
             fitArray = np.reshape(fitArray, niiImg.shape)
 
         # save
-        path = Path(self.config.FitDataOutputPath).absolute()
+        path = Path(self.config.OutputPath).absolute().joinpath("fit/")
         utils.create_folder_ifn_exist(path)
         save_path = path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii")
         logModule.info(f"Saving File: {save_path}")

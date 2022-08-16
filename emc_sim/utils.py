@@ -7,7 +7,8 @@ import pandas as pd
 import nibabel as nib
 import pickle
 import types
-from typing import Union
+import typing
+import tqdm
 
 logModule = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str 
     raise AttributeError(f"input file {path}: type not recognized or no .nii file")
 
 
-def load_database(path_to_file: Union[str, Path], append_zero: bool = True, normalization: str = "l2") -> (
+def load_database(path_to_file: typing.Union[str, Path], append_zero: bool = True, normalization: str = "l2") -> (
         pd.DataFrame, np.ndarray):
     # need standardized way of saving the database: changes here need changes in save fn above
     if not isinstance(path_to_file, Path):
@@ -108,3 +109,85 @@ def load_database(path_to_file: Union[str, Path], append_zero: bool = True, norm
     sim_data_flat = np.array([*df.emcSignal.to_numpy()])
     sim_data_flat = normalize_array(sim_data_flat, normalization=normalization)
     return df, sim_data_flat
+
+
+def parse_dcm_to_pro(path_to_dcm: typing.Union[str, Path]):
+    path = Path(path_to_dcm).absolute()
+    suffixes = ['.dcm', '.ima']
+    if set(suffixes).isdisjoint(path.suffixes):
+        err = f"File {path} has unknown Type {path.suffix}; must be one of: {suffixes}"
+        logModule.error(err)
+        raise AttributeError(err)
+
+    with open(path, "rb") as r_file:
+        dcm = r_file.read().splitlines()
+
+    # Find beginning and end of important info
+    l_counter = -1
+    start = -1
+    end = -1
+    lookout = False
+    for line in dcm:
+        l_counter += 1
+        if line.find(b'<ParamString."Protocol0">') != -1:
+            lookout = True
+        if line.find(b'XProtocol') != -1 and lookout:
+            start = l_counter
+            logModule.info(f"found start: {start}")
+            lookout = False
+        if line.startswith(b'### ASCCONV END ###'):
+            end = l_counter + 1
+            logModule.info(f"found end: {end}")
+
+    # some manipulations to transform to .pro
+    data_lines = dcm[start:end]
+
+    # define whats to be changed
+    subs = types.SimpleNamespace(line_idx=-1, idx=-1, str='')
+    subs_dict = {
+        'Initialized by sequence': types.SimpleNamespace(line_idx=1, idx=-21, str=''),
+        'ParamString."PatPosition': types.SimpleNamespace(line_idx=0, idx=0, str='<ParamString."PatPosition">  { }'),
+        'ParamLong."SBCSOriginPositionZ': types.SimpleNamespace(line_idx=0, idx=0,
+                                                                str='<ParamLong."SBCSOriginPositionZ">  { }'),
+        'tSequenceFileName': types.SimpleNamespace(line_idx=0, idx=0,
+                                                   str='tSequenceFileName	 = 	"Y:\n4\x86\prod\bin\se_mc"'),
+        'tProtocolName': types.SimpleNamespace(line_idx=0, idx=0, str='tProtocolName	 = 	"Initialized by sequence"')
+    }
+
+    data = []
+    bar = tqdm.trange(len(data_lines))
+    for line_idx in bar:
+        # pick line
+        line = data_lines[line_idx].decode()
+        # removing leasing/ trailing or double quotes ""
+        if line.strip().startswith('"'):
+            line = line.replace('"', '', 1)
+        if line_idx == len(data_lines) - 1:
+            line = line.replace(line[line.rfind('"')], '')
+        line = line.replace('""', '"')
+
+        # see if line contaings one of those
+        for key in subs_dict.keys():
+            idx = line.find(key)
+            if idx != -1:
+                bar.set_postfix_str(f"Found: {key} at {line_idx}")
+                subs = subs_dict.get(key)
+                subs.idx += idx
+                subs.line_idx += line_idx
+
+        if line_idx == subs.line_idx:
+            bar.set_postfix_str(f"Changed: {line} to {subs.str}")
+            line = line.replace(line[subs.idx:], subs.str)
+
+        data.append(line.encode())
+
+    # save
+    path = path.with_suffix('.pro')
+    logModule.info(f"Saving File: {path}")
+    with open(path, "wb") as s_file:
+        s_file.write(b'\n'.join(data_lines))
+
+
+if __name__ == '__main__':
+    PATH = "D:\\Daten\\01_Work\\11_owncloud\\ds_mese_cbs_js\\02_postmortem_scan_data\\01\\t2_semc_0p8_93slice\\dcm.dcm"
+    parse_dcm_to_pro(PATH)

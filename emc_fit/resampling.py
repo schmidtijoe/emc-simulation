@@ -59,7 +59,9 @@ class DataResampler:
         # multiprocessing, leave headroom but take at least 4
         self.numCpus = np.max([4, mp.cpu_count() - fitOpts.opts.ProcessingHeadroomMultiprocessing])
         self.multiprocessing = fitOpts.opts.Multiprocessing
-        logModule.info("Finished Init")
+        logModule.info(f"Data Resampling / Denoizing params: "
+                       f" Lambda {self.fitOpts.opts.ResampleDataRegularizationLambda}"
+                       f", Number of iterations {self.fitOpts.opts.ResampleDataNumIterations}")
 
     def _simple_iterate_approximation(self, eps: bool = True, return_stats: bool = True):
         """
@@ -106,10 +108,10 @@ class DataResampler:
         """
         Saving resampled data as .nii
         """
-        path = Path(self.fitOpts.config.ResampledDataOutputPath).absolute()
-        utils.create_folder_ifn_exist(path)
+        save_path = Path(self.fitOpts.config.OutputPath).absolute()
+        utils.create_folder_ifn_exist(save_path)
         img = nib.Nifti1Image(self.reNiiData, self.niiImg.affine)
-        nib.save(img, path.joinpath("resampled_input.nii"))
+        nib.save(img, save_path.joinpath("resampled_denoized_input.nii"))
 
     def get_data(self) -> (np.ndarray, nib.Nifti1Image):
         """
@@ -186,7 +188,8 @@ class DataResampler:
             mp_list = [[self.niiData[:, :, :, k], k] for k in range(echo_num)]
             num_cpus = np.min([echo_num, self.numCpus])
             if self.multiprocessing:
-                # results = parallelbar.progress_imap(self._echo_iteration, mp_list, n_cpu=4, core_progress=True, total=echo_num)
+                # results = parallelbar.progress_imap(
+                # self._echo_iteration, mp_list, n_cpu=4, core_progress=True, total=echo_num)
                 logModule.info(f"using {num_cpus} CPU for processing {echo_num} echo images")
                 with mp.Pool(num_cpus) as pool:
                     results = list(tqdm.tqdm(pool.imap_unordered(self._echo_iteration, mp_list), total=echo_num))
@@ -262,7 +265,7 @@ class DatabaseResampler:
 
         # create folder to temporarily save the processed data
         utils.create_folder_ifn_exist('temp/')
-        path = Path('temp').absolute()
+        save_path = Path('temp').absolute()
 
         for block_idx in tqdm.trange(self.fitOpts.opts.ProcessingNumBlocks):
             # logModule.info(f"Processing Block {block_idx}/{self.fitOpts.opts.ResamplingNumBlocks}")
@@ -277,19 +280,19 @@ class DatabaseResampler:
                 ]
 
             # temp save list
-            with open(path.joinpath(f"re_db_block_{block_idx}.pkl"), "wb") as p_file:
+            with open(save_path.joinpath(f"re_db_block_{block_idx}.pkl"), "wb") as p_file:
                 pickle.dump(resampledDbList, p_file)
 
         resampledDbList = []
         for read_idx in tqdm.trange(self.fitOpts.opts.ProcessingNumBlocks):
-            p_path = path.joinpath(f"re_db_block_{read_idx}.pkl")
+            p_path = save_path.joinpath(f"re_db_block_{read_idx}.pkl")
             with open(p_path, "rb") as p_file:
                 resampledDbList.append(pickle.load(p_file))
             os.remove(p_path)
         results = list(chain(*resampledDbList))
         # cleanup
         del resampledDbList
-        os.remove(path)
+        os.remove(save_path)
 
         results.sort(key=itemgetter(1))
         # keep result in array and del rest
@@ -309,9 +312,9 @@ class DatabaseResampler:
         return re_db, idx
 
     def save_resampled(self):
-        path = Path(self.fitOpts.config.ResampledDataOutputPath).absolute().joinpath("resampled_database.pkl")
-        utils.create_folder_ifn_exist(path.parent)
-        with open(path, "wb") as fp:
+        save_path = Path(self.fitOpts.config.OutputPath).absolute().joinpath("resampled_database.pkl")
+        utils.create_folder_ifn_exist(save_path.parent)
+        with open(save_path, "wb") as fp:
             pickle.dump(self.re_dbs, fp)
 
     def get_data(self):
@@ -321,7 +324,7 @@ class DatabaseResampler:
 def resampleDatabase(fitOpts: options.FitOptions) -> (np.ndarray, nib.Nifti1Image, pd.DataFrame, np.ndarray):
     dRe = DatabaseResampler(fitOpts=fitOpts)
     dRe.resample()
-    if fitOpts.config.ResampledDataOutputPath:
+    if fitOpts.config.OutputPath:
         dRe.save_resampled()
     niiData, niiImg, pd_db, np_db = dRe.get_data()
     return niiData, niiImg, pd_db, np_db
@@ -330,7 +333,7 @@ def resampleDatabase(fitOpts: options.FitOptions) -> (np.ndarray, nib.Nifti1Imag
 def resampleData(fitOpts: options.FitOptions) -> (np.ndarray, nib.Nifti1Image):
     dRe = DataResampler(fitOpts=fitOpts)
     dRe.resample()
-    if fitOpts.config.ResampledDataOutputPath:
+    if fitOpts.config.OutputPath:
         dRe.save_resampled()
     niiData, niiImg = dRe.get_data()
     return niiData, niiImg
