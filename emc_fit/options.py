@@ -20,7 +20,7 @@ class FileConfiguration(helpers.Serializable):
     def __post_init__(self):
         op = Path(self.OutputPath).absolute()
         if not op.is_dir():
-            self.OutputPath = str(op.parent)
+            self.OutputPath = op.parent.__str__()
 
 
 @dataclass
@@ -75,7 +75,13 @@ class FitOptions:
             fitSet = FitOptions.load(path)
         # fill in non defaults, aka additional provided
         for key, value in non_def.items():
-            fitSet.__setattr__(key, value)
+            if key in fitSet.config.to_dict().keys():
+                fitSet.config.__setattr__(key, value)
+            else:
+                fitSet.opts.__setattr__(key, value)
+        # catch empty outut path and use input path
+        if not fitSet.config.OutputPath or fitSet.config.OutputPath == Path(__file__).absolute().parent.__str__():
+            fitSet.config.__setattr__("OutputPath", Path(fitSet.config.NiiDataPath).absolute().parent.__str__())
         return fitSet
 
     def saveFit(self, fitArray: np.ndarray, niiImg: nib.Nifti1Image, name: str):
