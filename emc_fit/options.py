@@ -25,6 +25,7 @@ class FileConfiguration(helpers.Serializable):
 
 @dataclass
 class FitParameters(helpers.Serializable):
+    Mode: str = choice("Denoize", "Fit", "Both", default="Both")
     # ResamplingOption: str = choice("re_db", "re_data", "keep", "load_resampled", default="re_data")
     # ResampleDataNumIterations: int = 3
     # ResampleDataSimple: bool = False
@@ -33,7 +34,7 @@ class FitParameters(helpers.Serializable):
     # NoiseBackgroundEstimateVisualize: bool = False
     # Multiprocessing: bool = False
     # ProcessingNumBlocks: int = 50
-    ProcessingHeadroomMultiprocessing: int = 20
+    HeadroomMultiprocessing: int = 20
     TestingFlag: bool = False
     Visualize: bool = True
     FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")

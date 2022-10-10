@@ -64,7 +64,7 @@ def _y_tilde(
     return y_obs * factor
 
 
-def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, visualize: bool = True):
+def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, visualize: bool = True, mpHeadroom: int = 4):
     logModule.info("extract Noise characteristics")
     ncChi, snrMap = handlers.extract_chi_noise_characteristics_from_nii(niiData=data, visualize=visualize)
 

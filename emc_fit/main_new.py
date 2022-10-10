@@ -2,6 +2,8 @@ import os
 
 # set maximum number of threads for multiprocessing -> numpy is sometimes greedy,
 # if code is vectorized neatly it might take more resources than wanted by operator
+import typing
+
 os.environ["OMP_NUM_THREADS"] = "64"  # export OMP_NUM_THREADS=4
 os.environ["OPENBLAS_NUM_THREADS"] = "64"  # export OPENBLAS_NUM_THREADS=4
 os.environ["MKL_NUM_THREADS"] = "64"  # export MKL_NUM_THREADS=6
@@ -22,12 +24,11 @@ def select_fit_function(fitOpts: options.FitOptions,
                         pandas_database: pd.DataFrame,
                         numpy_database: np.ndarray
                         ) -> (np.ndarray, np.ndarray):
-    args = (niiData, pandas_database, numpy_database)
     fit_mode_opts = {
-        "threshold": modes.Fit(*args).get_maps(),
-        "pearson": modes.PearsonFit(*args).get_maps(),
-        "mle": modes.MleFit(*args).get_maps(),
-        "l2": modes.L2Fit(*args).get_maps()
+        "threshold": modes.Fit,
+        "pearson": modes.PearsonFit,
+        "mle": modes.MleFit,
+        "l2": modes.L2Fit
     }
     # make sure data is 2D
     if niiData.shape.__len__() > 2:
@@ -36,7 +37,7 @@ def select_fit_function(fitOpts: options.FitOptions,
         logging.info(f"reshaping data; shape {niiData.shape} ")
 
     assert fit_mode_opts.get(fitOpts.opts.FitMetric)
-    return fit_mode_opts.get(fitOpts.opts.FitMetric)
+    return fit_mode_opts.get(fitOpts.opts.FitMetric)(niiData, pandas_database, numpy_database).get_maps()
 
     # if fitOpts.opts.FitMetric == "threshold":
     #     return np.empty(0), np.empty(0)
@@ -61,46 +62,72 @@ def select_fit_function(fitOpts: options.FitOptions,
     #     raise AttributeError("Unrecognized Fitting Option!")
 
 
-def main(fitOpts: options.FitOptions):
-    logging.info("Load in data")
-    dataPath = Path(fitOpts.config.NiiDataPath).absolute()
-    outPath = Path(fitOpts.config.OutputPath).absolute()
-
-    logging.info("Loading data")
-    niiData, niiImg = utils.niiDataLoader(
-        dataPath,
-        test_set=fitOpts.opts.TestingFlag,
-        normalize=""
-    )
-    niiData = np.moveaxis(niiData, 1, 2)
-
-    if fitOpts.opts.Visualize:
-        # plot ortho
-        plots.plot_ortho_view(niiData)
-
+def mode_denoize(
+        fitOpts: options.FitOptions,
+        niiData: np.ndarray,
+        niiImg: nib.nifti1.Nifti1Image):
     # denoizing time series
     logging.info("Denoizing time series")
     d_niiData = denoize.denoize_nii_data(data=niiData, num_iterations=4, visualize=fitOpts.opts.Visualize)
 
     logging.info("Writing denoized to .nii")
-    d_outPath = outPath.joinpath(f"d_{dataPath.name}.nii")
-    logging.info(f"Writing File: {d_outPath.__str__()}")
-    d_saveData = np.moveaxis(d_niiData, 2, 1)
-    d_nii = nib.Nifti1Image(d_saveData, niiImg.affine)
-    nib.save(d_nii, d_outPath)
+    name = Path(fitOpts.config.NiiDataPath).absolute().stem
+    outPath = Path(fitOpts.config.OutputPath).absolute().joinpath(f"d_{name}")
+    logging.info(f"Writing File: {outPath}")
+    d_nii = nib.Nifti1Image(d_niiData, niiImg.affine)
+    nib.save(d_nii, outPath)
+    return d_niiData
 
+
+def mode_fit(
+        fitOpts: options.FitOptions,
+        niiData: np.ndarray,
+        niiImg: nib.nifti1.Nifti1Image):
+    logging.info(f"Loading Database - {fitOpts.config.DatabasePath}")
     # load database
     db_pd, db_np = utils.load_database(fitOpts.config.DatabasePath, append_zero=True, normalization="l2")
 
     # Fit
     logging.info(f"Fitting: {fitOpts.opts.FitMetric}")
-    t2_map, b1_map = select_fit_function(fitOpts=fitOpts, niiData=d_niiData, pandas_database=db_pd, numpy_database=db_np)
+    t2_map, b1_map = select_fit_function(fitOpts=fitOpts, niiData=niiData, pandas_database=db_pd,
+                                         numpy_database=db_np)
 
     if fitOpts.opts.TestingFlag:
         return 0
 
     fitOpts.saveFit(t2_map, niiImg, "t2")
     fitOpts.saveFit(b1_map, niiImg, "b1")
+
+
+def mode_both(
+        fitOpts: options.FitOptions,
+        niiData: np.ndarray,
+        niiImg: nib.nifti1.Nifti1Image):
+    d_niiData = mode_denoize(fitOpts, niiData, niiImg)
+    mode_fit(fitOpts, d_niiData, niiImg)
+
+
+def main(fitOpts: options.FitOptions):
+    dataPath = Path(fitOpts.config.NiiDataPath).absolute()
+
+    logging.info(f"Loading data - {dataPath}")
+    niiData, niiImg = utils.niiDataLoader(
+        dataPath,
+        test_set=fitOpts.opts.TestingFlag,
+        normalize=""
+    )
+
+    if fitOpts.opts.Visualize:
+        # plot ortho
+        plots.plot_ortho_view(niiData)
+
+    modeOptions = {
+        "Denoize": mode_denoize,
+        "Fit": mode_fit,
+        "Both": mode_both
+    }
+    assert modeOptions.get(fitOpts.opts.Mode)
+    modeOptions.get(fitOpts.opts.Mode)(fitOpts, niiData, niiImg)
 
 
 if __name__ == '__main__':
@@ -111,6 +138,6 @@ if __name__ == '__main__':
                         datefmt='%I:%M:%S', level=logging.INFO)
     try:
         main(opts)
-    except AttributeError as ae:
+    except AttributeError or AssertionError as ae:
         logging.error(ae)
         parser.print_usage()
