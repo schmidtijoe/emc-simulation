@@ -4,7 +4,7 @@ import numpy as np
 logModule = logging.getLogger(__name__)
 
 
-def chambolle_pock_tv(data, Lambda, n_it=100, return_all=True):
+def chambolle_pock_tv(data, Lambda, n_it=100, return_all=False):
     """
     Chambolle-Pock algorithm for Total Variation regularization.
     The following objective function is minimized :

@@ -47,7 +47,11 @@ class Fit:
         self.t2_map = np.zeros(self.num_curves)
         self.b1_map = np.zeros(self.num_curves)
 
+    def fit(self):
+        return
+
     def get_maps(self) -> (np.ndarray, np.ndarray):
+        self.fit()
         return self.t2_map, self.b1_map
 
 

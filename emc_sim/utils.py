@@ -38,7 +38,7 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
     return max_factor * data_array
 
 
-def niiDataLoader(path_to_nii_data: str, test_set: bool = False, normalize: str = "max") -> (
+def niiDataLoader(path_to_nii_data: typing.Union[str, Path], test_set: bool = False, normalize: str = "max") -> (
         np.ndarray, nib.nifti1.Nifti1Image):
     """
     Loads nii data into numpy array. and reshapes to 2d, normalizes

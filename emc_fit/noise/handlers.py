@@ -82,7 +82,7 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
         fig = plt.figure(figsize=(15, 7))
         gs = fig.add_gridspec(2, 2)
         ax = fig.add_subplot(gs[0])
-        ax.imshow(niiData[:, :, 0], clim=(0, 3 / 4 * np.max(niiData)), cmap=cmap)
+        ax.imshow(niiData[:, :, int(niiData.shape[2]/2)], clim=(0, 3 / 4 * np.max(niiData)), cmap=cmap)
         ax.axis('off')
         ax.grid(False)
 
