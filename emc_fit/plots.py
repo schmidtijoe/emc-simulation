@@ -43,7 +43,7 @@ def plot_ortho_view(data: np.ndarray):
 
     ax_axial = fig.add_subplot(gs[:, 0])
     ax_axial.axis(False)
-    img = ax_axial.imshow(echoImg[:, :, z], extent=[0, echoImg.shape[0], 0, echoImg.shape[1]], clim=(0, 2500))
+    img = ax_axial.imshow(echoImg[:, :, z], extent=[0, echoImg.shape[0], 0, echoImg.shape[1]])
 
     ax_coronal = fig.add_subplot(gs[0, 1])
     ax_coronal.axis(False)
@@ -72,6 +72,9 @@ def plot_denoized(origData: np.ndarray, denoizedData: np.ndarray):
     x_bins = x_bins[1:] - np.diff(x_bins)
 
     z = int(origData.shape[2] / 2)
+    if origData.shape.__len__() > 3:
+        origData = origData[:, :, :, 1]
+        denoizedData = denoizedData[:, :, :, 1]
 
     fig = plt.figure(figsize=(13, 6))
     gs = fig.add_gridspec(2, 6, width_ratios=[8, 1, 8, 1, 8, 1], height_ratios=[3, 1])
@@ -98,12 +101,12 @@ def plot_denoized(origData: np.ndarray, denoizedData: np.ndarray):
     plt.colorbar(img, ax=ax)
 
     ax = fig.add_subplot(gs[1, :2])
-    ax.set_ylim(0, np.max(data_hist[100:]))
+    ax.set_ylim(0, 1.2 * np.max(data_hist[100:]))
     ax.fill_between(data_bins, data_hist)
 
     ax = fig.add_subplot(gs[1, 2:4])
     ax.fill_between(x_bins, x_hist)
-    ax.set_ylim(0, np.max(x_hist[20:]))
+    ax.set_ylim(0, 1.2 * np.max(x_hist[20:]))
 
     plt.tight_layout()
     plt.show()

@@ -38,7 +38,9 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
     return max_factor * data_array
 
 
-def niiDataLoader(path_to_nii_data: typing.Union[str, Path], test_set: bool = False, normalize: str = "max") -> (
+def niiDataLoader(
+        path_to_nii_data: typing.Union[str, Path],
+        test_set: bool = False, normalize: str = "") -> (
         np.ndarray, nib.nifti1.Nifti1Image):
     """
     Loads nii data into numpy array. and reshapes to 2d, normalizes
@@ -52,7 +54,7 @@ def niiDataLoader(path_to_nii_data: typing.Union[str, Path], test_set: bool = Fa
         # also works for .nii.gz -> path suffixes include all
         niiImg = nib.load(path)
         data = np.array(niiImg.get_fdata())
-        if normalize == "max":
+        if normalize:
             data = normalize_array(data_array=data, normalization=normalize)
         if test_set:
             # want data from "middle" of image to not get 0 data for testing

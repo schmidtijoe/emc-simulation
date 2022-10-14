@@ -76,18 +76,18 @@ def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, visualize: bool 
     # can solve this with least squares solver eg: chambollepock algorithm,
     # get additionally a total variation (TV) term
     mp_list = []
-    for slice_idx in tqdm.trange(data.shape[2], desc="prepare mp"):
-        mp_list.append([data[:, :, slice_idx, :], slice_idx, num_iterations])
+    for phase_idx in tqdm.trange(data.shape[1], desc="prepare mp"):
+        mp_list.append([data[:, phase_idx, :, :], phase_idx, num_iterations])
 
     num_cpus = mp.cpu_count() - 4
     logModule.info(f"multiprocessing using {num_cpus} cpus")
     with mp.Pool(num_cpus) as p:
-        results = list(tqdm.tqdm(p.imap(denoize_wrap_mp, mp_list), total=data.shape[2], desc="mp slices"))
+        results = list(tqdm.tqdm(p.imap(denoize_wrap_mp, mp_list), total=data.shape[1], desc="mp pes"))
 
     d_data = np.zeros_like(data)
-    for mp_idx in tqdm.trange(data.shape[2], desc="join mp"):
-        slice_idx = results[mp_idx][0]
-        d_data[:, :, slice_idx, :] = results[mp_idx][1]
+    for mp_idx in tqdm.trange(data.shape[1], desc="join mp"):
+        phase_idx = results[mp_idx][0]
+        d_data[:, phase_idx, :, :] = results[mp_idx][1]
 
     if visualize:
         plots.plot_denoized(origData=data, denoizedData=d_data)
@@ -101,5 +101,5 @@ def denoize_wrap_mp(args):
     x = data.copy()
     for _ in range(num_iterations):
         y = _y_tilde(y_obs=y, x_approx=x)
-        x = chambollepock.chambolle_pock_tv(y, 0.2, n_it=30, return_all=False)
+        x = chambollepock.chambolle_pock_tv(y, 0.05, n_it=30, return_all=False)
     return idx, x

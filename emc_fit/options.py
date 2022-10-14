@@ -16,7 +16,7 @@ class FileConfiguration(helpers.Serializable):
     NiiDataPath: str = field(alias=["-i"], default="")
     DatabasePath: str = ""
     OutputPath: str = field(alias=["-o"], default="")
-
+    NameId: str = ""
     def __post_init__(self):
         op = Path(self.OutputPath).absolute()
         if not op.is_dir():
@@ -38,6 +38,8 @@ class FitParameters(helpers.Serializable):
     TestingFlag: bool = False
     Visualize: bool = True
     FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")
+    DenoizeNumIterations: int = 2
+
 
 
 @dataclass
@@ -94,7 +96,9 @@ class FitOptions:
             fitArray = np.reshape(fitArray, niiImg.shape)
 
         # save
-        path = Path(self.config.OutputPath).absolute().joinpath("fit/")
+        path = Path(self.config.OutputPath).absolute()
+        if not path.stem == "fit":
+            path = path.joinpath("fit/")
         utils.create_folder_ifn_exist(path)
         save_path = path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii")
         logModule.info(f"Saving File: {save_path}")
