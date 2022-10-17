@@ -22,7 +22,7 @@ import nibabel as nib
 def select_fit_function(fitOpts: options.FitOptions,
                         niiData: np.ndarray,
                         pandas_database: pd.DataFrame,
-                        numpy_database: np.ndarray
+                        b1_prior: modes.B1Prior
                         ) -> (np.ndarray, np.ndarray):
     fit_mode_opts = {
         "threshold": modes.Fit,
@@ -30,36 +30,9 @@ def select_fit_function(fitOpts: options.FitOptions,
         "mle": modes.MleFit,
         "l2": modes.L2Fit
     }
-    # make sure data is 2D
-    if niiData.shape.__len__() > 2:
-        logging.info(f"nii input data; shape {niiData.shape} ")
-        niiData = np.reshape(niiData, [-1, niiData.shape[-1]])
-        logging.info(f"reshaping data; shape {niiData.shape} ")
 
     assert fit_mode_opts.get(fitOpts.opts.FitMetric)
-    return fit_mode_opts.get(fitOpts.opts.FitMetric)(niiData, pandas_database, numpy_database).get_maps()
-
-    # if fitOpts.opts.FitMetric == "threshold":
-    #     return np.empty(0), np.empty(0)
-    # elif fitOpts.opts.FitMetric == "pearson":
-    #     pearson_fit = modes.PearsonFit(
-    #         nifti_data=niiData, pandas_database=pandas_database, numpy_database=numpy_database
-    #     )
-    #     pearson_fit.fit()
-    #     return pearson_fit.get_maps()
-    # elif fitOpts.opts.FitMetric == "mle":
-    #     mle_fit = modes.MleFit(
-    #         nifti_data=niiData, pandas_database=pandas_database, numpy_database=numpy_database
-    #     )
-    #     mle_fit.fit()
-    #     return mle_fit.get_maps()
-    # elif fitOpts.opts.FitMetric == "l2":
-    #     l2_fit = modes.L2Fit(nifti_data=niiData, pandas_database=pandas_database, numpy_database=numpy_database)
-    #     l2_fit.fit_mp()
-    #     return l2_fit.get_maps()
-    # else:
-    #     logging.error("Unrecognized Fitting Option!")
-    #     raise AttributeError("Unrecognized Fitting Option!")
+    return fit_mode_opts.get(fitOpts.opts.FitMetric)(niiData, pandas_database, b1_prior).get_maps()
 
 
 def mode_denoize(
@@ -85,12 +58,21 @@ def mode_fit(
         niiImg: nib.nifti1.Nifti1Image):
     logging.info(f"Loading Database - {fitOpts.config.DatabasePath}")
     # load database
-    db_pd, db_np = utils.load_database(fitOpts.config.DatabasePath, append_zero=True, normalization="l2")
-
+    db_pd, _ = utils.load_database(fitOpts.config.DatabasePath, append_zero=True, normalization="l2")
+    # check b1 prior
+    b1_prior = modes.B1Prior(
+        data_slice_shape=niiData.shape[:2],
+        database_pandas=db_pd,
+        b1_map_input=False,
+        b1_weighting=fitOpts.opts.B1Weighting,
+        b1_weight_factor=0.1,
+        b1_weight_width=1.1,
+        visualize=fitOpts.opts.Visualize
+    )
     # Fit
     logging.info(f"Fitting: {fitOpts.opts.FitMetric}")
     t2_map, b1_map = select_fit_function(fitOpts=fitOpts, niiData=niiData, pandas_database=db_pd,
-                                         numpy_database=db_np)
+                                         b1_prior=b1_prior)
 
     if fitOpts.opts.TestingFlag:
         return 0

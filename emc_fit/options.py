@@ -17,6 +17,7 @@ class FileConfiguration(helpers.Serializable):
     DatabasePath: str = ""
     OutputPath: str = field(alias=["-o"], default="")
     NameId: str = ""
+
     def __post_init__(self):
         op = Path(self.OutputPath).absolute()
         if not op.is_dir():
@@ -33,13 +34,12 @@ class FitParameters(helpers.Serializable):
     # NoiseBackgroundEstimateCornerFraction: float = 8.0
     # NoiseBackgroundEstimateVisualize: bool = False
     # Multiprocessing: bool = False
-    # ProcessingNumBlocks: int = 50
+    B1Weighting: bool = True
     HeadroomMultiprocessing: int = 20
     TestingFlag: bool = False
     Visualize: bool = True
     FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")
     DenoizeNumIterations: int = 2
-
 
 
 @dataclass
