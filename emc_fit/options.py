@@ -39,7 +39,7 @@ class FitParameters(helpers.Serializable):
     TestingFlag: bool = False
     Visualize: bool = True
     FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")
-    DenoizeNumIterations: int = 2
+    DenoizeNumIterations: int = 1
 
 
 @dataclass

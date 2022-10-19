@@ -34,7 +34,9 @@ def plot_curve_selection(data: np.ndarray, noise_mean: float):
 def plot_ortho_view(data: np.ndarray):
     logModule.info("plot ortho view")
     echo = 1
-    echoImg = data[:, :, :, echo]
+    echoImg = data
+    if data.shape.__len__() > 3:
+        echoImg = data[:, :, :, echo]
     shape = np.array([*echoImg.shape]) / 2
     x, y, z = shape.astype(int)
 
@@ -62,7 +64,7 @@ def plot_ortho_view(data: np.ndarray):
     plt.show()
 
 
-def plot_denoized(origData: np.ndarray, denoizedData: np.ndarray):
+def plot_denoized(origData: np.ndarray, denoizedData: np.ndarray, save: str = ""):
     # build data histogramm
     data_hist, data_bins = np.histogram(origData, bins=1000)
     data_bins = data_bins[1:] - np.diff(data_bins)
@@ -84,21 +86,21 @@ def plot_denoized(origData: np.ndarray, denoizedData: np.ndarray):
     ax.grid(False)
     img = ax.imshow(origData[:, :, z], clim=(0, y_lim))
     ax = fig.add_subplot(gs[0, 1])
-    plt.colorbar(img, ax=ax)
+    plt.colorbar(img, cax=ax)
 
     ax = fig.add_subplot(gs[0, 2])
     ax.axis(False)
     ax.grid(False)
     img = ax.imshow(denoizedData[:, :, z], clim=(0, y_lim))
     ax = fig.add_subplot(gs[0, 3])
-    plt.colorbar(img, ax=ax)
+    plt.colorbar(img, cax=ax)
 
     ax = fig.add_subplot(gs[0, 4])
     ax.axis(False)
     ax.grid(False)
     img = ax.imshow((origData[:, :, z] - denoizedData[:, :, z]) / origData[:, :, z])
     ax = fig.add_subplot(gs[0, 5])
-    plt.colorbar(img, ax=ax)
+    plt.colorbar(img, cax=ax)
 
     ax = fig.add_subplot(gs[1, :2])
     ax.set_ylim(0, 1.2 * np.max(data_hist[100:]))
@@ -109,4 +111,7 @@ def plot_denoized(origData: np.ndarray, denoizedData: np.ndarray):
     ax.set_ylim(0, 1.2 * np.max(x_hist[20:]))
 
     plt.tight_layout()
+    if save:
+        logModule.info(f"Writing plot file: {save}")
+        plt.savefig(save, bbox_inches="tight")
     plt.show()

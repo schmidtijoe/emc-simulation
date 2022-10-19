@@ -41,11 +41,20 @@ def mode_denoize(
         niiImg: nib.nifti1.Nifti1Image):
     # denoizing time series
     logging.info("Denoizing time series")
-    d_niiData = denoize.denoize_nii_data(data=niiData, num_iterations=fitOpts.opts.DenoizeNumIterations, visualize=fitOpts.opts.Visualize)
+    save_plot_path = Path(fitOpts.config.OutputPath).absolute().joinpath(
+        f"{fitOpts.config.NameId}_denoising_efficiency.png"
+    )
+    d_niiData = denoize.denoize_nii_data(
+        data=niiData,
+        num_iterations=fitOpts.opts.DenoizeNumIterations,
+        visualize=fitOpts.opts.Visualize,
+        mpHeadroom=fitOpts.opts.HeadroomMultiprocessing,
+        save_plot=save_plot_path.__str__()
+    )
 
     logging.info("Writing denoized to .nii")
     name = Path(fitOpts.config.NiiDataPath).absolute().stem
-    outPath = Path(fitOpts.config.OutputPath).absolute().joinpath(f"d_{name}")
+    outPath = Path(fitOpts.config.OutputPath).absolute().joinpath(f"d_{name}.nii")
     logging.info(f"Writing File: {outPath}")
     d_nii = nib.Nifti1Image(d_niiData, niiImg.affine)
     nib.save(d_nii, outPath)
@@ -65,7 +74,7 @@ def mode_fit(
         database_pandas=db_pd,
         b1_map_input=False,
         b1_weighting=fitOpts.opts.B1Weighting,
-        b1_weight_factor=0.1,
+        b1_weight_factor=0.05,
         b1_weight_width=1.1,
         visualize=fitOpts.opts.Visualize
     )

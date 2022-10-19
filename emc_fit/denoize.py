@@ -55,18 +55,24 @@ def _majorante(
 def _y_tilde(
         y_obs: typing.Union[np.ndarray, float, int],
         x_approx: typing.Union[np.ndarray, float, int],
-        sigma: float = 31.0) -> typing.Union[np.ndarray, float]:
+        sigma: float = 31.0,
+        num_channels: int = 16) -> typing.Union[np.ndarray, float]:
     arg = np.multiply(
         y_obs,
         x_approx
     ) / sigma ** 2
-    factor = _majorante(arg)
+    factor = _majorante(arg, num_channels=num_channels)
     return y_obs * factor
 
 
-def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, visualize: bool = True, mpHeadroom: int = 4):
+def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, mpHeadroom: int = 4,
+                     visualize: bool = True, save_plot: str = ""):
     logModule.info("extract Noise characteristics")
-    ncChi, snrMap = handlers.extract_chi_noise_characteristics_from_nii(niiData=data, visualize=visualize)
+    ncChi, snrMap = handlers.extract_chi_noise_characteristics_from_nii(
+        niiData=data,
+        visualize=visualize,
+        corner_fraction=10.0
+    )
 
     if visualize:
         # plot curve selection
@@ -77,9 +83,9 @@ def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, visualize: bool 
     # get additionally a total variation (TV) term
     mp_list = []
     for phase_idx in tqdm.trange(data.shape[1], desc="prepare mp"):
-        mp_list.append([data[:, phase_idx, :, :], phase_idx, num_iterations])
+        mp_list.append([data[:, phase_idx], phase_idx, num_iterations, ncChi])
 
-    num_cpus = mp.cpu_count() - 4
+    num_cpus = mp.cpu_count() - mpHeadroom
     logModule.info(f"multiprocessing using {num_cpus} cpus")
     with mp.Pool(num_cpus) as p:
         results = list(tqdm.tqdm(p.imap(denoize_wrap_mp, mp_list), total=data.shape[1], desc="mp pes"))
@@ -87,19 +93,19 @@ def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, visualize: bool 
     d_data = np.zeros_like(data)
     for mp_idx in tqdm.trange(data.shape[1], desc="join mp"):
         phase_idx = results[mp_idx][0]
-        d_data[:, phase_idx, :, :] = results[mp_idx][1]
+        d_data[:, phase_idx] = results[mp_idx][1]
 
     if visualize:
-        plots.plot_denoized(origData=data, denoizedData=d_data)
+        plots.plot_denoized(origData=data, denoizedData=d_data, save=save_plot)
 
     return d_data
 
 
 def denoize_wrap_mp(args):
-    data, idx, num_iterations = args
+    data, idx, num_iterations, ncChi = args
     y = data.copy()
     x = data.copy()
     for _ in range(num_iterations):
-        y = _y_tilde(y_obs=y, x_approx=x)
-        x = chambollepock.chambolle_pock_tv(y, 0.05, n_it=30, return_all=False)
+        y = _y_tilde(y_obs=y, x_approx=x, sigma=ncChi.sigma, num_channels=ncChi.num_channels)
+        x = chambollepock.chambolle_pock_tv(y, 0.05, n_it=20, return_all=False)
     return idx, x

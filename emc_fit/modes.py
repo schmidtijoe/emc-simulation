@@ -122,14 +122,15 @@ class B1Prior:
         width = self.width
         fig = plt.figure(figsize=(12, 6))
         fig.suptitle(f"weight: {weight:.2f}, width: {width:.2f}")
-        gs = fig.add_gridspec(2, 6)
+        gs_y = int(len(self.b1_values) / 2)
+        gs = fig.add_gridspec(2, gs_y+1)
         for k in range(len(self.b1_values)):
             ax = fig.add_subplot(gs[k])
             ax.axis(False)
             ax.set_title(f"B1: {self.b1_values[k]}")
             img = ax.imshow(self.b1_weighting_matrix[:, :, k])
-        ax = fig.add_subplot(gs[-1])
-        plt.colorbar(img, ax, shrink=0.7)
+        ax_cb = fig.add_subplot(gs[-1])
+        plt.colorbar(img, cax=ax_cb)
         plt.tight_layout()
         plt.show()
 
@@ -192,7 +193,11 @@ class L2Fit(Fit):
             # data dim [x, y, t], db dim [x, y, t2, b1, t]
             differenceCurveDb = self.np_db[np.newaxis, np.newaxis, :, :, :] - data[:, :, np.newaxis, np.newaxis, :]
             l2_db = np.linalg.norm(differenceCurveDb, axis=-1)
-            penalty = l2_db + self.b1_weight_matrix[:, :, np.newaxis, :]
+            l2_b1 = l2_db + self.b1_weight_matrix[:, :, np.newaxis, :]
+            # total variation part
+            lam = 0.1
+            tv = np.sum(np.abs(np.array(np.gradient(l2_b1, axis=-1))))      # want to minimize total variation across B1 map
+            penalty = l2_b1    # + lam * tv
             minimum = np.min(penalty, axis=(-1, -2))
             for x in range(penalty.shape[0]):
                 for y in range(penalty.shape[1]):
