@@ -38,7 +38,8 @@ def select_fit_function(fitOpts: options.FitOptions,
 def mode_denoize(
         fitOpts: options.FitOptions,
         niiData: np.ndarray,
-        niiImg: nib.nifti1.Nifti1Image):
+        niiImg: nib.nifti1.Nifti1Image,
+        save: bool = True):
     # denoizing time series
     logging.info("Denoizing time series")
     save_plot_path = Path(fitOpts.config.OutputPath).absolute().joinpath(
@@ -52,12 +53,19 @@ def mode_denoize(
         save_plot=save_plot_path.__str__()
     )
 
-    logging.info("Writing denoized to .nii")
-    name = Path(fitOpts.config.NiiDataPath).absolute().stem
-    outPath = Path(fitOpts.config.OutputPath).absolute().joinpath(f"d_{name}.nii")
-    logging.info(f"Writing File: {outPath}")
-    d_nii = nib.Nifti1Image(d_niiData, niiImg.affine)
-    nib.save(d_nii, outPath)
+    if save:
+        logging.info("Writing denoized to .nii")
+        if not fitOpts.config.NameId:
+            name = Path(fitOpts.config.NiiDataPath).absolute()
+            for _ in name.suffixes:
+                name = name.with_suffix("")
+            name = name.stem
+        else:
+            name = fitOpts.config.NameId
+        outPath = Path(fitOpts.config.OutputPath).absolute().joinpath(f"d_{name}.nii")
+        logging.info(f"Writing File: {outPath}")
+        d_nii = nib.Nifti1Image(d_niiData, niiImg.affine)
+        nib.save(d_nii, outPath)
     return d_niiData
 
 
@@ -96,7 +104,7 @@ def mode_both(
         fitOpts: options.FitOptions,
         niiData: np.ndarray,
         niiImg: nib.nifti1.Nifti1Image):
-    d_niiData = mode_denoize(fitOpts, niiData, niiImg)
+    d_niiData = mode_denoize(fitOpts, niiData, niiImg, save=True)
     mode_fit(fitOpts, d_niiData, niiImg)
 
 

@@ -25,7 +25,7 @@ class B1Prior:
                  b1_map_input: bool = False, b1_weighting: bool = True,
                  b1_weight_factor: float = 0.1, b1_weight_width: float = 1.1,
                  visualize: bool = True):
-        logModule.info("Inititalize B1 Prior")
+        logModule.info("B1Prior -- Inititalize")
         self.visualize = visualize
         # toggle for use of b1 weighting
         self.use_weighting = b1_weighting
@@ -48,20 +48,19 @@ class B1Prior:
         self.weighting_factor = b1_weight_factor
         self.b1_weighting_matrix = np.ones((*data_slice_shape, len(self.b1_values)))
 
-        logModule.info(f"reshape database")
         self.database = database_pandas
         # rebuild database with slice dimensions
         self.slice_database = self.rebuild_database()
 
     def set_weighting_matrix(self):
         if self.use_weighting:        # b1 weighting factor
-            logModule.info(f"Use weighting!")
+            logModule.info(f"B1Prior -- Use weighting!")
             if self.map_input:
-                logModule.info(f"Input B1 Map")
+                logModule.info(f"B1Prior -- Input B1 Map")
                 # ToDo: code for processing input nii here, maybe resampling
                 pass
             else:
-                logModule.info(f"Weight: {self.weighting_factor:.3f}, Width: {self.width:.2f}")
+                logModule.info(f"B1Prior -- Weight: {self.weighting_factor:.3f}, Width: {self.width:.2f}")
                 # calculate weighting
                 # calls to reset width and weights would take effect here
                 self.b1_weighting_matrix = self._set_slice_weighting()
@@ -69,6 +68,7 @@ class B1Prior:
                 if self.visualize:
                     self._visualize_b1_weighting()
         else:
+            logModule.info(f"B1Prior -- No B1 prior weighting!")
             self.weighting_factor = 0.0
 
     def get_slice_shape_database(self):
@@ -82,7 +82,7 @@ class B1Prior:
         self.width = width
 
     def _set_slice_weighting(self):
-        logModule.info("set slice b1 weighting")
+        logModule.info("B1Prior -- set slice b1 weighting")
         b1_weighting_profile = self._create_gauss_b1_matrix()
         slice_db_b1_weight = np.zeros([*self.data_shape, len(self.b1_values)])
         for idx_b1 in range(len(self.b1_values)):
@@ -91,7 +91,7 @@ class B1Prior:
 
     def rebuild_database(self):
         # need to rearrange database to pick curves based on b1
-        logModule.info("Rearranging database")
+        logModule.info("B1Prior -- Rearranging database")
         slice_database = np.zeros([len(self.t2_values), len(self.b1_values), self.etl])
         # rearrange database
         for idx_b1 in range(len(self.b1_values)):
@@ -139,11 +139,11 @@ class Fit:
     def __init__(self, nifti_data: np.ndarray, pandas_database: pd.DataFrame, b1_prior: B1Prior):
         self.pd_db = pandas_database
         self.nii_data = nifti_data
-        logModule.info("____________")
-        logModule.info("emc_fit")
+        logModule.info("______ FIT ______")
+        logModule.info("Fit -- emc_fit")
         if np.max(nifti_data) > 1.001:
-            logModule.info(f"Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
-            logModule.info("Rescaling")
+            logModule.info(f"Fit -- Nifti Input Data range exceeded; max: {np.max(nifti_data)}")
+            logModule.info("Fit --Rescaling")
             self.nii_data = utils.normalize_array(self.nii_data)
         if nifti_data.shape.__len__() < 2:
             err = "Nifti Input Data assumed to be at least 2D: [voxels, echoes] but found 1D, exiting..."
@@ -163,7 +163,7 @@ class Fit:
         self.t2_values = np.unique(self.pd_db.t2)
 
         # l2 normalize
-        logModule.info("L2 normalize data")
+        logModule.info("Fit -- L2 normalize data")
         self.nii_data = utils.normalize_array(self.nii_data, normalization="l2")
         self.np_db = utils.normalize_array(self.np_db, normalization="l2")
 
@@ -205,7 +205,7 @@ class L2Fit(Fit):
                     self.t2_map[x, y, slice_idx] = self.t2_values[idx_t2[0]]
                     self.b1_map[x, y, slice_idx] = self.b1_values[idx_b1[0]]
 
-        logModule.info("Finished!")
+        logModule.info("Fit L2 -- Finished!")
 
     # @staticmethod
     # def _wrap_l2(args):

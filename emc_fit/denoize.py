@@ -71,7 +71,7 @@ def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, mpHeadroom: int 
     ncChi, snrMap = handlers.extract_chi_noise_characteristics_from_nii(
         niiData=data,
         visualize=visualize,
-        corner_fraction=10.0
+        corner_fraction=15.0
     )
 
     if visualize:
@@ -107,5 +107,5 @@ def denoize_wrap_mp(args):
     x = data.copy()
     for _ in range(num_iterations):
         y = _y_tilde(y_obs=y, x_approx=x, sigma=ncChi.sigma, num_channels=ncChi.num_channels)
-        x = chambollepock.chambolle_pock_tv(y, 0.05, n_it=20, return_all=False)
+        x = chambollepock.chambolle_pock_tv(y, 0.05, n_it=25, return_all=False)
     return idx, x

@@ -23,6 +23,7 @@ def plot_curve_selection(data: np.ndarray, noise_mean: float):
     # plot selection
     fig = plt.figure(figsize=(10, 4))
     ax = fig.add_subplot()
+    ax.set_ylim(0, 1.2 * np.max(curves))
     for k in range(n):
         ax.plot(x_ax, curves[k], color=colors[k])
     ax.plot(x_ax, np.full_like(x_ax, noise_mean), color="#ff5c33", linewidth=3, label="noise mean")

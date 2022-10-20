@@ -12,7 +12,7 @@ logModule = logging.getLogger(__name__)
 
 @dataclass
 class FileConfiguration(helpers.Serializable):
-    ConfigFile: str = ""
+    ConfigFile: str = field(alias=["-c"], default="")
     NiiDataPath: str = field(alias=["-i"], default="")
     DatabasePath: str = ""
     OutputPath: str = field(alias=["-o"], default="")
@@ -27,13 +27,6 @@ class FileConfiguration(helpers.Serializable):
 @dataclass
 class FitParameters(helpers.Serializable):
     Mode: str = choice("Denoize", "Fit", "Both", default="Both")
-    # ResamplingOption: str = choice("re_db", "re_data", "keep", "load_resampled", default="re_data")
-    # ResampleDataNumIterations: int = 3
-    # ResampleDataSimple: bool = False
-    # ResampleDataRegularizationLambda: float = 0.1
-    # NoiseBackgroundEstimateCornerFraction: float = 8.0
-    # NoiseBackgroundEstimateVisualize: bool = False
-    # Multiprocessing: bool = False
     B1Weighting: bool = True
     HeadroomMultiprocessing: int = 20
     TestingFlag: bool = False
