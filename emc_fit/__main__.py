@@ -38,22 +38,25 @@ def select_fit_function(fitOpts: options.FitOptions,
 def mode_denoize(
         fitOpts: options.FitOptions,
         niiData: np.ndarray,
-        niiImg: nib.nifti1.Nifti1Image,
-        save: bool = True):
+        niiImg: nib.nifti1.Nifti1Image):
     # denoizing time series
     logging.info("Denoizing time series")
-    save_plot_path = Path(fitOpts.config.OutputPath).absolute().joinpath(
-        f"{fitOpts.config.NameId}_denoising_efficiency.png"
-    )
+    if fitOpts.opts.DenoizeSave:
+        save_plot_path = Path(fitOpts.config.OutputPath).absolute().joinpath(
+            f"{fitOpts.config.NameId}_denoising_efficiency.png"
+        ).__str__()
+    else:
+        save_plot_path = ""
+
     d_niiData = denoize.denoize_nii_data(
         data=niiData,
         num_iterations=fitOpts.opts.DenoizeNumIterations,
         visualize=fitOpts.opts.Visualize,
         mpHeadroom=fitOpts.opts.HeadroomMultiprocessing,
-        save_plot=save_plot_path.__str__()
+        save_plot=save_plot_path
     )
 
-    if save:
+    if fitOpts.opts.DenoizeSave:
         logging.info("Writing denoized to .nii")
         if not fitOpts.config.NameId:
             name = Path(fitOpts.config.NiiDataPath).absolute()
@@ -81,7 +84,7 @@ def mode_fit(
         data_slice_shape=niiData.shape[:2],
         database_pandas=db_pd,
         b1_map_input=False,
-        b1_weighting=fitOpts.opts.B1Weighting,
+        b1_weighting=fitOpts.opts.FitB1Weighting,
         b1_weight_factor=0.05,
         b1_weight_width=1.1,
         visualize=fitOpts.opts.Visualize
@@ -104,7 +107,7 @@ def mode_both(
         fitOpts: options.FitOptions,
         niiData: np.ndarray,
         niiImg: nib.nifti1.Nifti1Image):
-    d_niiData = mode_denoize(fitOpts, niiData, niiImg, save=True)
+    d_niiData = mode_denoize(fitOpts, niiData, niiImg)
     mode_fit(fitOpts, d_niiData, niiImg)
 
 
@@ -133,7 +136,7 @@ def main(fitOpts: options.FitOptions):
         "f": mode_fit,
         "Both": mode_both,
         "both": mode_both,
-        "b": mode_both
+        "df": mode_both
     }
     assert modeOptions.get(fitOpts.opts.Mode)
     modeOptions.get(fitOpts.opts.Mode)(fitOpts, niiData, niiImg)

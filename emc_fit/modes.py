@@ -1,9 +1,9 @@
 """
-Module to emc_fit database with or without sampled noise meanto nii data.
+Module to emc_fit database with or without denoising nii data.
 
 Different fitting options are build in as objects.
 Taking in the niiData (in 2D) and pandas/numpy objects of the database
-database is assumed to be either 2D [t2/b1 variants, echos] or 3D [corresponding niiData voxel, t2/b1 variants, echoes]
+is assumed to be either 2D [t2/b1 variants, echos] or 3D [corresponding niiData voxel, t2/b1 variants, echoes]
 
 """
 import logging

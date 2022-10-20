@@ -26,13 +26,14 @@ class FileConfiguration(helpers.Serializable):
 
 @dataclass
 class FitParameters(helpers.Serializable):
-    Mode: str = choice("Denoize", "Fit", "Both", default="Both")
-    B1Weighting: bool = True
-    HeadroomMultiprocessing: int = 20
-    TestingFlag: bool = False
-    Visualize: bool = True
+    Mode: str = choice("Denoize", "d", "Fit", "f", "Both", "df", default="Both")
+    FitB1Weighting: bool = True
     FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")
     DenoizeNumIterations: int = 1
+    DenoizeSave: bool = True
+    Visualize: bool = True
+    HeadroomMultiprocessing: int = 20
+    TestingFlag: bool = False
 
 
 @dataclass
