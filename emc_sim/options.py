@@ -51,6 +51,8 @@ class SimulationConfig(Serializable):
     """
     # provide Configuration file (.json)
     configFile: str = ""
+    # provide separate sequence params
+    emcSeqConfig: str = ""
     # set path to save database and used config
     savePath: str = "./data"
     # set filename of database
@@ -217,6 +219,8 @@ class SimulationParameters(Serializable):
         # eg. to overwrite an instance (containing non-default values) loaded by a configFile
         # and explicitly trying to change entries to default via cmd input.
         # ToDo: Fix explicit cmd line input
+        if args.config.emcSeqConfig:
+            simParams.sequence = SequenceParams.load(args.config.emcSeqConfig)
         return simParams
 
     def _checkNonDefaultVars(self) -> (dict, dict, dict):

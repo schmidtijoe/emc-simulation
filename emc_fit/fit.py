@@ -7,136 +7,19 @@ is assumed to be either 2D [t2/b1 variants, echos] or 3D [corresponding niiData 
 
 """
 import logging
-
 import pandas as pd
-
 from emc_sim import utils
+from emc_fit import b1input
 import numpy as np
 import tqdm
 from scipy import stats
-import multiprocessing as mp
 import matplotlib.pyplot as plt
 
 logModule = logging.getLogger(__name__)
 
 
-class B1Prior:
-    def __init__(self, data_slice_shape: tuple, database_pandas: pd.DataFrame,
-                 b1_map_input: bool = False, b1_weighting: bool = True,
-                 b1_weight_factor: float = 0.1, b1_weight_width: float = 1.1,
-                 visualize: bool = True):
-        logModule.info("B1Prior -- Inititalize")
-        self.visualize = visualize
-        # toggle for use of b1 weighting
-        self.use_weighting = b1_weighting
-        # external b1 map provided
-        self.map_input = b1_map_input
-        # if not set shape width for b1 prior
-        self.width = b1_weight_width
-        # set shape
-        self.data_shape = data_slice_shape
-        if len(self.data_shape) > 2:
-            # catch shape mismatch -> only x & y dim
-            self.data_shape = self.data_shape[:2]
-
-        # initialize
-        self.b1_values = np.unique(database_pandas.b1)
-        self.t2_values = np.unique(database_pandas.t2)
-        self.etl = len(database_pandas.iloc[0].emcSignal)
-
-        # default values for no weighting at all
-        self.weighting_factor = b1_weight_factor
-        self.b1_weighting_matrix = np.ones((*data_slice_shape, len(self.b1_values)))
-
-        self.database = database_pandas
-        # rebuild database with slice dimensions
-        self.slice_database = self.rebuild_database()
-
-    def set_weighting_matrix(self):
-        if self.use_weighting:        # b1 weighting factor
-            logModule.info(f"B1Prior -- Use weighting!")
-            if self.map_input:
-                logModule.info(f"B1Prior -- Input B1 Map")
-                # ToDo: code for processing input nii here, maybe resampling
-                pass
-            else:
-                logModule.info(f"B1Prior -- Weight: {self.weighting_factor:.3f}, Width: {self.width:.2f}")
-                # calculate weighting
-                # calls to reset width and weights would take effect here
-                self.b1_weighting_matrix = self._set_slice_weighting()
-                # visualize
-                if self.visualize:
-                    self._visualize_b1_weighting()
-        else:
-            logModule.info(f"B1Prior -- No B1 prior weighting!")
-            self.weighting_factor = 0.0
-
-    def get_slice_shape_database(self):
-        return self.slice_database
-
-    def get_b1_weighting_matrix(self):
-        return self.weighting_factor * self.b1_weighting_matrix
-
-    def set_weight_width(self, weight: float, width: float):
-        self.weighting_factor = weight
-        self.width = width
-
-    def _set_slice_weighting(self):
-        logModule.info("B1Prior -- set slice b1 weighting")
-        b1_weighting_profile = self._create_gauss_b1_matrix()
-        slice_db_b1_weight = np.zeros([*self.data_shape, len(self.b1_values)])
-        for idx_b1 in range(len(self.b1_values)):
-            slice_db_b1_weight[:, :, idx_b1] = np.abs(self.b1_values[idx_b1] - b1_weighting_profile)
-        return slice_db_b1_weight
-
-    def rebuild_database(self):
-        # need to rearrange database to pick curves based on b1
-        logModule.info("B1Prior -- Rearranging database")
-        slice_database = np.zeros([len(self.t2_values), len(self.b1_values), self.etl])
-        # rearrange database
-        for idx_b1 in range(len(self.b1_values)):
-            for idx_t2 in range(len(self.t2_values)):
-                sub_db = self.database[self.database.t2 == self.t2_values[idx_t2]]
-                curve = sub_db[sub_db.b1 == self.b1_values[idx_b1]].emcSignal.to_numpy()[0]
-                nc = np.linalg.norm(curve)
-                slice_database[idx_t2, idx_b1] = np.divide(curve, nc, where=nc > 0, out=np.zeros_like(curve))
-        return slice_database
-
-    def _create_gauss_b1_matrix(self, width_factor: float = 1.0):
-        x_dim = self.data_shape[0]
-        y_dim = self.data_shape[1]
-        x_mid = int(x_dim / 2)
-        y_mid = int(y_dim / 2)
-
-        X, Y = np.meshgrid(np.arange(x_dim), np.arange(y_dim))
-        b1_range = (np.min(self.b1_values), np.max(self.b1_values))
-
-        g2d = b1_range[0] + np.diff(b1_range) * np.exp(
-            -4 * np.log(2) * (
-                        (X - x_mid) ** 2 / (width_factor * x_mid) ** 2 + (Y - y_mid) ** 2 / (width_factor * y_mid) ** 2)
-        )
-        return np.swapaxes(g2d, 0, 1)
-
-    def _visualize_b1_weighting(self):
-        weight = self.weighting_factor
-        width = self.width
-        fig = plt.figure(figsize=(12, 6))
-        fig.suptitle(f"weight: {weight:.2f}, width: {width:.2f}")
-        gs_y = int(len(self.b1_values) / 2)
-        gs = fig.add_gridspec(2, gs_y+1)
-        for k in range(len(self.b1_values)):
-            ax = fig.add_subplot(gs[k])
-            ax.axis(False)
-            ax.set_title(f"B1: {self.b1_values[k]}")
-            img = ax.imshow(self.b1_weighting_matrix[:, :, k])
-        ax_cb = fig.add_subplot(gs[-1])
-        plt.colorbar(img, cax=ax_cb)
-        plt.tight_layout()
-        plt.show()
-
-
 class Fit:
-    def __init__(self, nifti_data: np.ndarray, pandas_database: pd.DataFrame, b1_prior: B1Prior):
+    def __init__(self, nifti_data: np.ndarray, pandas_database: pd.DataFrame, b1_weight: b1input.B1Weight):
         self.pd_db = pandas_database
         self.nii_data = nifti_data
         logModule.info("______ FIT ______")
@@ -152,11 +35,8 @@ class Fit:
         self.num_curves = np.prod(self.nii_data.shape[:-1])
 
         # rearrange database
-        self.np_db = b1_prior.get_slice_shape_database()
-        # set weighting matrix
-        b1_prior.set_weighting_matrix()
-        # get weight matrix
-        self.b1_weight_matrix = b1_prior.get_b1_weighting_matrix()
+        self.np_db = b1_weight.get_t2_b1_etl_shape_database()
+        self.b1_weight = b1_weight
 
         # set values
         self.b1_values = np.unique(self.pd_db.b1)
@@ -179,8 +59,8 @@ class Fit:
 
 
 class L2Fit(Fit):
-    def __init__(self, nifti_data: np.ndarray, pandas_database: pd.DataFrame, b1_prior: B1Prior):
-        super(L2Fit, self).__init__(nifti_data, pandas_database, b1_prior)
+    def __init__(self, nifti_data: np.ndarray, pandas_database: pd.DataFrame, b1_weighting: b1input.B1Weight):
+        super(L2Fit, self).__init__(nifti_data, pandas_database, b1_weighting)
         # self.chunk_size = 2000
         # self.chunk_num = int(np.ceil(self.num_curves / self.chunk_size))
 
@@ -193,10 +73,11 @@ class L2Fit(Fit):
             # data dim [x, y, t], db dim [x, y, t2, b1, t]
             differenceCurveDb = self.np_db[np.newaxis, np.newaxis, :, :, :] - data[:, :, np.newaxis, np.newaxis, :]
             l2_db = np.linalg.norm(differenceCurveDb, axis=-1)
-            l2_b1 = l2_db + self.b1_weight_matrix[:, :, np.newaxis, :]
+            b1_slice_weight_matrix = self.b1_weight.get_b1_weighting_matrix(slice_id=slice_idx)
+            l2_b1 = l2_db + b1_slice_weight_matrix[:, :, np.newaxis, :]
             # total variation part
-            lam = 0.1
-            tv = np.sum(np.abs(np.array(np.gradient(l2_b1, axis=-1))))      # want to minimize total variation across B1 map
+            # lam = 0.1
+            # tv = np.sum(np.abs(np.array(np.gradient(l2_b1, axis=-1))))      # want to minimize total variation across B1 map
             penalty = l2_b1    # + lam * tv
             minimum = np.min(penalty, axis=(-1, -2))
             for x in range(penalty.shape[0]):
@@ -286,14 +167,11 @@ if __name__ == '__main__':
     niiData, niiImg = utils.niiDataLoader(inFile)
 
     # set prior
-    b1_prior = B1Prior(
+    b1_prior = b1input.set_b1_weighting(
+        opts=None,
         data_slice_shape=niiData.shape[:2],
         database_pandas=pd_db,
-        b1_map_input=False,
-        b1_weighting=True,
-        b1_weight_factor=0.1,
-        b1_weight_width=1.1,
-        visualize=False
+        b1_weight_factor=0.1
     )
 
     nw = 5
