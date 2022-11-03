@@ -29,6 +29,7 @@ class FitParameters(helpers.Serializable):
     Mode: str = choice("Denoize", "d", "Fit", "f", "Both", "df", default="Both")
     FitB1Weighting: bool = True
     FitB1WeightingInput: str = ""
+    FitB1WeightingLambda: float = 0.1
     FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")
     DenoizeNumIterations: int = 1
     DenoizeSave: bool = True

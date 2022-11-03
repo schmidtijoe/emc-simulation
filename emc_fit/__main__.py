@@ -87,7 +87,7 @@ def mode_fit(
         data_slice_shape=niiData.shape[:2],
         database_pandas=db_pd,
         opts=fitOpts.opts,
-        b1_weight_factor=0.05,
+        b1_weight_factor=fitOpts.opts.FitB1WeightingLambda,
     )
     # Fit
     logging.info(f"Fitting: {fitOpts.opts.FitMetric}")

@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from emc_sim import utils
-from emc_fit import options
+from emc_fit import options, plots
 
 logModule = logging.getLogger(__name__)
 
@@ -36,6 +36,10 @@ class B1Weight:
 
         self.database = database_pandas
 
+        if b1_weighting:
+            logModule.info(f"B1Weight -- Use weighting!")
+            logModule.info(f"B1Weight: {self.weighting_factor:.3f}")
+
     def get_t2_b1_etl_shape_database(self):
         reshaped_database = self.rebuild_database()
         return reshaped_database
@@ -44,8 +48,6 @@ class B1Weight:
         if not self.use_weighting:
             return np.zeros_like(self.b1_weighting_matrix)
         else:
-            logModule.info(f"B1Weight -- Use weighting!")
-            logModule.info(f"B1Weight: {self.weighting_factor:.3f}")
             return self.module_set_b1_weighting_matrix(slice_id)
 
     def module_set_b1_weighting_matrix(self, slice_id: int = 0):
@@ -66,21 +68,6 @@ class B1Weight:
                 slice_database[idx_t2, idx_b1] = np.divide(curve, nc, where=nc > 0, out=np.zeros_like(curve))
         return slice_database
 
-    def _visualize_b1_weighting(self):
-        fig = plt.figure(figsize=(12, 6))
-        fig.suptitle(f"")
-        gs_y = int(len(self.b1_values) / 2)
-        gs = fig.add_gridspec(2, gs_y + 1)
-        for k in range(len(self.b1_values)):
-            ax = fig.add_subplot(gs[k])
-            ax.axis(False)
-            ax.set_title(f"B1: {self.b1_values[k]}")
-            img = ax.imshow(self.b1_weighting_matrix[:, :, k])
-        ax_cb = fig.add_subplot(gs[-1])
-        plt.colorbar(img, cax=ax_cb)
-        plt.tight_layout()
-        plt.show()
-
 
 class B1Prior(B1Weight):
     def __init__(self, data_slice_shape: tuple, database_pandas: pd.DataFrame,
@@ -98,6 +85,9 @@ class B1Prior(B1Weight):
         self.width = b1_weight_width
         # create in-plane pos. dep. weighting
         self.b1_weighting_matrix = self._set_slice_weighting()
+
+        if visualize:
+            self._visualize_b1_weighting()
 
     def module_set_b1_weighting_matrix(self, slice_id: int = 0):
         # reset module dependent slice b1 weighting
@@ -132,6 +122,21 @@ class B1Prior(B1Weight):
         )
         return np.swapaxes(g2d, 0, 1)
 
+    def _visualize_b1_weighting(self):
+        fig = plt.figure(figsize=(12, 6))
+        fig.suptitle(f"")
+        gs_y = int(len(self.b1_values) / 2)
+        gs = fig.add_gridspec(2, gs_y + 1)
+        for k in range(len(self.b1_values)):
+            ax = fig.add_subplot(gs[k])
+            ax.axis(False)
+            ax.set_title(f"B1: {self.b1_values[k]}")
+            img = ax.imshow(self.b1_weighting_matrix[:, :, k])
+        ax_cb = fig.add_subplot(gs[-1])
+        plt.colorbar(img, cax=ax_cb)
+        plt.tight_layout()
+        plt.show()
+
 
 class B1Input(B1Weight):
     def __init__(self, data_slice_shape: tuple, database_pandas: pd.DataFrame,
@@ -157,10 +162,13 @@ class B1Input(B1Weight):
         b1_nii_data, self.b1_nii_image = utils.niiDataLoader(self.input_path, test_set=False, normalize="")
         self.b1_weighting_matrix = input_scaling * b1_nii_data
 
+        if visualize:
+            plots.plot_ortho_view(self.b1_weighting_matrix)
+
     def module_set_b1_weighting_matrix(self, slice_id: int = 0):
         # reset module dependent weighting matrix
         # specifier needed, dep. on slice pos!
-        logModule.info("B1Input -- set slice b1 weighting")
+        logModule.debug("B1Input -- set slice b1 weighting")
         # need to match len b1s in last dim [x, y, len_b1s]
         slice_db_b1_weight = self.b1_weighting_matrix[:, :, slice_id]
         # need to output dimensions [x, y, num_b1_values]
@@ -176,7 +184,7 @@ def set_b1_weighting(opts: options.FitOptions.opts,
             data_slice_shape=data_slice_shape,
             database_pandas=database_pandas,
             b1_weighting=opts.FitB1Weighting,
-            b1_weight_factor=b1_weight_factor,
+            b1_weight_factor=opts.FitB1WeightingLambda,
             visualize=opts.Visualize,
             input_path=opts.FitB1WeightingInput,
             input_scaling=1e-2
@@ -185,9 +193,9 @@ def set_b1_weighting(opts: options.FitOptions.opts,
         b1_weight = B1Prior(
             data_slice_shape=data_slice_shape,
             database_pandas=database_pandas,
-            b1_weighting=opts.opts.FitB1Weighting,
-            b1_weight_factor=b1_weight_factor,
-            visualize=opts.opts.Visualize,
+            b1_weighting=opts.FitB1Weighting,
+            b1_weight_factor=opts.FitB1WeightingLambda,
+            visualize=opts.Visualize,
             b1_weight_width=1.1
         )
     return b1_weight
