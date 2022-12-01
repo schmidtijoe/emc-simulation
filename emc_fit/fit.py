@@ -74,11 +74,13 @@ class L2Fit(Fit):
             differenceCurveDb = self.np_db[np.newaxis, np.newaxis, :, :, :] - data[:, :, np.newaxis, np.newaxis, :]
             l2_db = np.linalg.norm(differenceCurveDb, axis=-1)
             b1_slice_weight_matrix = self.b1_weight.get_b1_weighting_matrix(slice_id=slice_idx)
-            l2_b1 = l2_db + b1_slice_weight_matrix[:, :, np.newaxis, :]
+            l2_b1 = (1.0 - self.b1_weight.get_weighting_value()) * l2_db + \
+                    self.b1_weight.get_weighting_value() * b1_slice_weight_matrix[:, :, np.newaxis, :]
             # total variation part
             # lam = 0.1
-            # tv = np.sum(np.abs(np.array(np.gradient(l2_b1, axis=-1))))      # want to minimize total variation across B1 map
-            penalty = l2_b1    # + lam * tv
+            # tv = np.sum(np.abs(np.array(np.gradient(l2_b1, axis=-1))))
+            # want to minimize total variation across B1 map
+            penalty = l2_b1  # + lam * tv
             minimum = np.min(penalty, axis=(-1, -2))
             for x in range(penalty.shape[0]):
                 for y in range(penalty.shape[1]):

@@ -30,15 +30,22 @@ class B1Weight:
         self.etl = len(database_pandas.iloc[0].emcSignal)
 
         # default values for no weighting at all
-        self.weighting_factor = b1_weight_factor
+        if b1_weight_factor < 0.0 or b1_weight_factor > 1.0:
+            err = f"weighting factor outside of range {b1_weight_factor}," \
+                  f"weights b1 importance between 0 - 100 %, take factor between 0 - 1"
+            logModule.error(err)
+            raise ValueError(err)
+        self.weighting_factor: float = b1_weight_factor
         # we build the matrix on a per slice bases!
-        self.b1_weighting_matrix = np.ones((*data_slice_shape, len(self.b1_values)))
+        self.b1_weighting_matrix = np.zeros((*data_slice_shape, len(self.b1_values)))
 
         self.database = database_pandas
 
         if b1_weighting:
             logModule.info(f"B1Weight -- Use weighting!")
             logModule.info(f"B1Weight: {self.weighting_factor:.3f}")
+        else:
+            logModule.info("no B1 weighting set")
 
     def get_t2_b1_etl_shape_database(self):
         reshaped_database = self.rebuild_database()
@@ -53,7 +60,10 @@ class B1Weight:
     def module_set_b1_weighting_matrix(self, slice_id: int = 0):
         # index if needed for 3d object
         # this probably needs to be adapted for modules
-        return self.weighting_factor * self.b1_weighting_matrix
+        return self.b1_weighting_matrix
+
+    def get_weighting_value(self) -> float:
+        return self.weighting_factor
 
     def rebuild_database(self):
         # need to rearrange database to pick curves based on b1
@@ -83,8 +93,10 @@ class B1Prior(B1Weight):
         logModule.info("B1Prior -- Initialize")
         # if not set shape width for b1 prior
         self.width = b1_weight_width
+
         # create in-plane pos. dep. weighting
-        self.b1_weighting_matrix = self._set_slice_weighting()
+        if b1_weighting:
+            self.b1_weighting_matrix = self._set_slice_weighting()
 
         if visualize:
             self._visualize_b1_weighting()
@@ -92,7 +104,7 @@ class B1Prior(B1Weight):
     def module_set_b1_weighting_matrix(self, slice_id: int = 0):
         # reset module dependent slice b1 weighting
         # nothing to do here! independent of slice position
-        return self.weighting_factor * self.b1_weighting_matrix
+        return self.b1_weighting_matrix
 
     def set_weight_width(self, weight: float, width: float):
         self.weighting_factor = weight
@@ -172,7 +184,7 @@ class B1Input(B1Weight):
         # need to match len b1s in last dim [x, y, len_b1s]
         slice_db_b1_weight = self.b1_weighting_matrix[:, :, slice_id]
         # need to output dimensions [x, y, num_b1_values]
-        return self.weighting_factor * np.repeat(slice_db_b1_weight[:, :, np.newaxis], len(self.b1_values), axis=-1)
+        return np.repeat(slice_db_b1_weight[:, :, np.newaxis], len(self.b1_values), axis=-1)
 
 
 def set_b1_weighting(opts: options.FitOptions.opts,

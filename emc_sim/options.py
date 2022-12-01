@@ -196,6 +196,9 @@ class SimulationParameters(Serializable):
         self.sequence.gradientAcquisition = - self.settings.acquisitionNumber * self.sequence.bw \
                                             / (self.sequence.gammaHz * 2 * self.settings.lengthZ) * 1000
 
+    def set_acquisition_gradient(self):
+        self.__post_init__()
+
     @classmethod
     def from_cmd_args(cls, args: ArgumentParser.parse_args):
         simParams = SimulationParameters(config=args.config, settings=args.settings, sequence=args.sequence)
@@ -221,6 +224,7 @@ class SimulationParameters(Serializable):
         # ToDo: Fix explicit cmd line input
         if args.config.emcSeqConfig:
             simParams.sequence = SequenceParams.load(args.config.emcSeqConfig)
+        simParams.set_acquisition_gradient()
         return simParams
 
     def _checkNonDefaultVars(self) -> (dict, dict, dict):
