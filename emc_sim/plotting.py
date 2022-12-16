@@ -3,7 +3,7 @@ Visualizations
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from emc_sim.options import SimulationParameters, SimulationTempData
+from emc_sim import options, events
 
 
 def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
@@ -12,6 +12,7 @@ def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
     x = np.arange(gradientArray.shape[0])
     gradColor = '#29856c'
     pulseColor = '#5a2985'
+    phaseColour = '#ff6666'
     # create axes
     pax = givenAx.twinx()
     axLimit = 1.2 * np.max(np.abs(gradientArray))
@@ -45,6 +46,11 @@ def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
     # plot and fill pulse
     pax.plot(x, np.abs(pulseArray), color=pulseColor, linewidth=3, label='pulse')
     pax.fill_between(x, 0, np.abs(pulseArray), color=pulseColor, alpha=0.4, hatch='/')
+    phase = np.angle(pulseArray)
+    mapped_phase = phase / np.pi * paxLimit / 1.25
+    p_idx = np.argmax(np.abs(mapped_phase))
+    pax.scatter(x, mapped_phase, color=phaseColour, s=5)
+    pax.annotate(f'{phase[p_idx]/np.pi * 180.0:.1f} °', (x[p_idx], mapped_phase[p_idx]), color=phaseColour)
 
     # legend
     lines, labels = givenAx.get_legend_handles_labels()
@@ -52,30 +58,28 @@ def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
     pax.legend(lines + lines2, labels + labels2, loc=0)
 
 
-def visualizeAllGradientPulses(gpDict: dict):
+def visualizeAllGradientPulses(gp_data: list):
     """
     Plot individual pulse - gradient profiles
     NEEDS gpList to be a List of dictionaries with specific entries from pulse-preparation module
 
-    :param gpDict: dict of g-p dictionaries per echo train
+    :param gp_data: list of g-p dictionaries per echo train
     :return: plot
     """
     plt.style.use('ggplot')
-    fig = plt.figure(figsize=(7, 3.5 * gpDict.__len__()), dpi=200)
-    counter = 0
-    for key in gpDict:
-        counter += 1
-        plotData = gpDict[key]
+    fig = plt.figure(figsize=(7, 3.5 * gp_data.__len__()), dpi=200)
+    for pos_idx in range(gp_data.__len__()):
+        plotData = gp_data[pos_idx]
         # create axes
-        ax = fig.add_subplot(gpDict.__len__(), 1, counter)
-        gpType = plotData['pulseType']
+        ax = fig.add_subplot(gp_data.__len__(), 1, pos_idx+1)
+        gpType = plotData.pulse_type
         ax.set_title(f"Pulse type: {gpType}")
         if gpType == "Acquisition":
-            plotGrad = plotData['gradientData'] * np.ones(int(plotData['temporalSamplingSteps']))
-            plotPulse = np.zeros(int(plotData['temporalSamplingSteps']))
+            plotGrad = plotData.data_grad * np.ones(int(plotData.dt_sampling_steps))
+            plotPulse = np.zeros(int(plotData.dt_sampling_steps))
         else:
-            plotGrad = plotData['gradientData']
-            plotPulse = plotData['pulseData']
+            plotGrad = plotData.data_grad
+            plotPulse = plotData.data_pulse
         visualizeGradientPulse(ax, plotGrad, plotPulse)
 
     plt.tight_layout()
@@ -110,25 +114,28 @@ def visualizePulseProfile(array_mags, phase=False):
     return
 
 
-def visualizeSequenceScheme(gpDict: dict, timingArr: np.ndarray, simParams: SimulationParameters):
-    yGrad = gpDict['excitation']['gradientData']
-    yPulse = gpDict['excitation']['pulseData']
-    for idx in range(simParams.sequence.ETL):
-        if idx == 0:
-            identifier = 'refocus_1'
-        else:
-            identifier = 'refocus'
+def visualizeSequenceScheme(gp_data: list, timing: events.Timing, acquisition: events.GradPulse):
+    yGrad = gp_data[0].data_grad
+    yPulse = gp_data[0].data_pulse
+    for idx in range(gp_data.__len__()-1):
+        # concat time delay
         yGrad = np.concatenate(
-            (yGrad, np.zeros(int(timingArr[idx, 0] / 5))))  # divide by 5us to get rough no of sampling pts
-        yPulse = np.concatenate((yPulse, np.zeros(int(timingArr[idx, 0] / 5))))
-        yGrad = np.concatenate((yGrad, gpDict[identifier]['gradientData']))
-        yPulse = np.concatenate((yPulse, gpDict[identifier]['pulseData']))
-        yGrad = np.concatenate((yGrad, np.zeros(int(timingArr[idx, 1] / 5))))
-        yPulse = np.concatenate((yPulse, np.zeros(int(timingArr[idx, 1] / 5))))
+            (yGrad, np.zeros(int(timing.time_pre_pulse[idx] / 5))))
+        # divide by 5us to get rough no of sampling pts
+        yPulse = np.concatenate(
+            (yPulse, np.zeros(int(timing.time_pre_pulse[idx] / 5))))
+        # pulse
+        yGrad = np.concatenate((yGrad, gp_data[idx+1].data_grad))
+        yPulse = np.concatenate((yPulse, gp_data[idx+1].data_pulse))
+        # concat time delay
         yGrad = np.concatenate(
-            (yGrad, - np.linspace(simParams.sequence.gradientAcquisition, simParams.sequence.gradientAcquisition,
-                                  int(simParams.sequence.durationAcquisition / 5))))
-        yPulse = np.concatenate((yPulse, np.zeros(int(simParams.sequence.durationAcquisition / 5))))
+            (yGrad, np.zeros(int(timing.time_post_pulse[idx] / 5))))
+        yPulse = np.concatenate((yPulse, np.zeros(int(timing.time_post_pulse[idx] / 5))))
+        # concat acquisition
+        yGrad = np.concatenate(
+            (yGrad, - np.linspace(acquisition.data_grad[0], acquisition.data_grad[0],
+                                  int(acquisition.duration / 5))))
+        yPulse = np.concatenate((yPulse, np.zeros(int(acquisition.duration / 5))))
     plt.style.use('ggplot')
     fig = plt.figure(figsize=(10, 4), dpi=200)
     ax = fig.add_subplot()
@@ -137,7 +144,7 @@ def visualizeSequenceScheme(gpDict: dict, timingArr: np.ndarray, simParams: Simu
     plt.show()
 
 
-def visualizeEchoes(signalArray, simParams: SimulationParameters):
+def visualizeEchoes(signalArray, simParams: options.SimulationParameters):
     fig = plt.figure(figsize=(10, 4), dpi=200)
     for k in range(signalArray.shape[0]):
         ax = fig.add_subplot(simParams.sequence.ETL, 3, 3 * k + 1)
@@ -152,16 +159,18 @@ def visualizeEchoes(signalArray, simParams: SimulationParameters):
     plt.show()
 
 
-def visualizeSignalResponse(emcCurve):
+def visualizeSignalResponse(emcCurve, t2b1: tuple = None):
     fig = plt.figure(figsize=(7, 4), dpi=200)
     ax = fig.add_subplot()
+    if t2b1 is not None:
+        ax.set_title(f't2: {t2b1[0]*1000:.1f}, b1: {t2b1[1]:.2f}')
     ax.set_xlabel(f'echo number')
     ax.set_ylabel(f'signal response intensity')
     ax.plot(np.arange(len(emcCurve)), emcCurve)
     plt.show()
 
 
-def plotMagnetization(tempData: SimulationTempData):
+def plotMagnetization(tempData: options.SimulationTempData):
     fig = plt.figure(figsize=(8, 8), dpi=200)
 
     real = tempData.magnetizationPropagation[-1][0]

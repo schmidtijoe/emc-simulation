@@ -108,6 +108,8 @@ class SequenceParams(Serializable):
 
     # Excitation, Flip Angle [°]
     excitationAngle: float = 90.0
+    # Excitation, Phase [°]
+    excitationPhase: float = 90.0
     # Excitation, gradient if rectangular/trapezoid [mt/m]
     gradientExcitation: float = 0.0
     # Excitation, duration of pulse [us]
@@ -122,7 +124,9 @@ class SequenceParams(Serializable):
     durationExcitationVerse2: float = 1020.0  # [us], verse
 
     # Refocussing, Flip Angle [°]
-    refocusAngle: float = 135
+    refocusAngle: List = field(default_factory=lambda: [140.0])
+    # Refocussing, Phase [°]
+    refocusPhase: List = field(default_factory=lambda: [0.0])
     # Refocussing, gradient strength if rectangular/trapezoid [mt/m]
     gradientRefocus: float = 0.0
     # Refocussing, duration of pulse [us]
@@ -142,7 +146,22 @@ class SequenceParams(Serializable):
     def __post_init__(self):
         self.gammaPi: float = self.gammaHz * 2 * np.pi
         self.durationAcquisition: float = 1e6 / self.bw  # [us]
-        #
+        if self.refocusPhase.__len__() != self.refocusAngle.__len__():
+            err = f"provide same amount of refocusing pulse angle ({self.refocusAngle.__len__()}) " \
+                  f"and phases ({self.refocusPhase.__len__()})"
+            logModule.error(err)
+            raise AttributeError(err)
+        # check for phase values
+        for l_idx in range(self.refocusPhase.__len__()):
+            while np.abs(self.refocusPhase[l_idx]) > 180.0:
+                self.refocusPhase[l_idx] = self.refocusPhase[l_idx] - np.sign(self.refocusPhase[l_idx]) * 180.0
+            while np.abs(self.refocusAngle[l_idx]) > 180.0:
+                self.refocusAngle[l_idx] = self.refocusAngle[l_idx] - np.sign(self.refocusAngle[l_idx]) * 180.0
+        while self.refocusAngle.__len__() < self.ETL:
+            # fill up list with last value
+            self.refocusAngle.append(self.refocusAngle[-1])
+            self.refocusPhase.append(self.refocusPhase[-1])
+
 
 
 @dataclass

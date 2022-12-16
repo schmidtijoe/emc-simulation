@@ -29,103 +29,72 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
     # we take the parameters of the specific run by assigning directly to the run obj of temp
     tempData.run = simData
 
-    # ----- defining pulses ----- #
-    gradientPulseData = prep.gradientPulsePreparation(simParams=simParams, simTempData=tempData)
-
-    # ----- setup timing ----- #
-    arrayTiming = prep.buildFillTiming_mese(simParams)
-
+    # ----- prep sequence ----- #
+    gp_excitation, gps_refocus, timing, acquisition = prep.gradientPulsePreparationSEMC(
+        simParams=simParams, simTempData=tempData)
 
     # ----- Starting Calculations ----- #
-    logModule.debug('run 1')
+    logModule.debug('excitation')
 
     tempData = functions.propagateGradientPulseTime(
-        dictGradPulse=gradientPulseData["excitation"],
+        grad_pulse=gp_excitation,
         simParams=simParams,
         simTempData=tempData
     )
 
-    if simParams.config.debuggingFlag and simParams.config.visualize:
-        # for debugging
-        plotting.plotMagnetization(tempData)
+    # if simParams.config.debuggingFlag and simParams.config.visualize:
+    #     # for debugging
+    #     plotting.plotMagnetization(tempData)
 
-    # first refocus is different
-    tempData = functions.propagateRelaxation(
-        deltaT=arrayTiming[0, 0],
-        simTempData=tempData,
-        simParams=simParams
-    )
-
-    tempData = functions.propagateGradientPulseTime(
-        dictGradPulse=gradientPulseData["refocus_1"],
-        simParams=simParams,
-        simTempData=tempData
-    )
-
-    tempData = functions.propagateRelaxation(
-        deltaT=arrayTiming[0, 1],
-        simParams=simParams,
-        simTempData=tempData
-    )
-
-    for acqIdx in range(simParams.settings.acquisitionNumber):
-        tempData = functions.propagateGradientPulseTime(
-            dictGradPulse=gradientPulseData["acquisition"],
-            simParams=simParams,
-            simTempData=tempData,
-            append=False
-        )
-
-        tempData.signalArray[0, acqIdx] = (np.sum(tempData.magnetizationPropagation[-1][0])
-                                           + 1j * np.sum(tempData.magnetizationPropagation[-1][1])) \
-                                           * 100 * simParams.settings.lengthZ / simParams.settings.sampleNumber
-        # signal scaled by distance between points (not entirely sure if this makes a difference
-
-    # ----- refocusing loop - echo train -----
-    for loopIdx in np.arange(1, simParams.sequence.ETL):
+    for loopIdx in np.arange(0, simParams.sequence.ETL):
+        # ----- refocusing loop - echo train -----
         logModule.debug(f'run {loopIdx + 1}')
 
-        tempData = functions.propagateRelaxation(
-            deltaT=arrayTiming[loopIdx, 0],
-            simTempData=tempData,
-            simParams=simParams
-        )
+        # delay before pulse
+        tempData = functions.propagateRelaxation(deltaT=timing.time_pre_pulse[loopIdx], simTempData=tempData)
 
+        # pulse
         tempData = functions.propagateGradientPulseTime(
-            dictGradPulse=gradientPulseData["refocus"],
+            grad_pulse=gps_refocus[loopIdx],
             simParams=simParams,
             simTempData=tempData
         )
 
-        tempData = functions.propagateRelaxation(
-            deltaT=arrayTiming[loopIdx, 1],
-            simTempData=tempData,
-            simParams=simParams
-        )
+        # if simParams.config.debuggingFlag and simParams.config.visualize:
+        #     # for debugging
+        #     plotting.plotMagnetization(tempData)
 
+        # delay after pulse
+        tempData = functions.propagateRelaxation(deltaT=timing.time_post_pulse[loopIdx], simTempData=tempData)
+
+        # acquisition
         for acqIdx in range(simParams.settings.acquisitionNumber):
             tempData = functions.propagateGradientPulseTime(
-                dictGradPulse=gradientPulseData["acquisition"],
+                grad_pulse=acquisition,
                 simParams=simParams,
                 simTempData=tempData,
                 append=False
             )
 
             tempData.signalArray[loopIdx, acqIdx] = (np.sum(tempData.magnetizationPropagation[-1][0])
-                                                     + 1j * np.sum(tempData.magnetizationPropagation[-1][1])) \
-                                                     * 100 * simParams.settings.lengthZ / \
-                                                     simParams.settings.sampleNumber
+                                               + 1j * np.sum(tempData.magnetizationPropagation[-1][1])) \
+                                               * 100 * simParams.settings.lengthZ / simParams.settings.sampleNumber
             # signal scaled by distance between points (not entirely sure if this makes a difference
+        # if simParams.config.debuggingFlag and simParams.config.visualize:
+        #     # for debugging
+        #     plotting.plotMagnetization(tempData)
     # ----- finished loop -----
 
     logModule.debug('Signal array processing fourier')
     imageArray = np.fft.fftshift(np.fft.fft(np.fft.fftshift(tempData.signalArray)))
     simData.emcSignal = 2 * np.sum(np.abs(imageArray), axis=1) / simParams.settings.acquisitionNumber
+    if simParams.sequence.ETL % 2 > 0:
+        # for some reason we get a shift from the fft when used with odd array length.
+        simData.emcSignal = np.roll(simData.emcSignal, 1)
     # factor 2 not necessary, stems from Noams version, ultimately want some normalization here!
     simData.time = time.time() - t_start
 
     if simParams.config.debuggingFlag and simParams.config.visualize:
         # for debugging
-        plotting.plotMagnetization(tempData)
-        plotting.visualizeSignalResponse(simData.emcSignal)
+        plotting.visualizeSignalResponse(simData.emcSignal, (simData.t2, simData.b1))
     return simData, simParams

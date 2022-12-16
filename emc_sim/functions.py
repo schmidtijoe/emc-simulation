@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from emc_sim.options import SimulationParameters, SimulationTempData
+from emc_sim import options, events
 from typing import Union
 
 
@@ -18,16 +18,15 @@ def readPulseFile(filename: str) -> (np.ndarray, tuple):
 
 def pulseCalibrationIntegral(pulse: np.ndarray,
                              deltaT: float,
-                             simParams: SimulationParameters,
-                             simTempData: SimulationTempData,
-                             phase: float = 0.0) -> np.ndarray:
+                             simParams: options.SimulationParameters,
+                             simTempData: options.SimulationTempData,
+                             pulseNumber: int = 0) -> np.ndarray:
     """
     Calibrates pulse waveform for given flip angle, adds phase if given
 
     :param simParams: Simulation parameters
     :param pulse: array of complex pulse data
     :param deltaT: temporal sampling steps of pulse events [us]
-    :param phase: phase offset from x axis [°]
     :return: calibrated b1 profile, complex
     """
     # normalize
@@ -36,8 +35,11 @@ def pulseCalibrationIntegral(pulse: np.ndarray,
     flipAngleNormalizedB1 = np.sum(b1Pulse * simParams.sequence.gammaPi) * deltaT * 1e-6
     if simTempData.excitation_flag:
         angleFlip = simParams.sequence.excitationAngle
+        phase = simParams.sequence.excitationPhase / 180.0 * np.pi
     else:
-        angleFlip = simParams.sequence.refocusAngle
+        # excitation pulse always 0th pulse
+        angleFlip = simParams.sequence.refocusAngle[pulseNumber - 1]
+        phase = simParams.sequence.refocusPhase[pulseNumber - 1] / 180.0 * np.pi
     angleFlip *= np.pi / 180 * simTempData.run.b1  # calculate with applied actual flip angle offset
     b1PulseCalibrated = b1Pulse * (angleFlip / flipAngleNormalizedB1) * np.exp(1j * phase)
     return b1PulseCalibrated
@@ -51,7 +53,7 @@ def propagateRotationRelaxationDiffusion(ux: Union[np.ndarray, float],
                                          mz: Union[np.ndarray, float],
                                          me: Union[np.ndarray, float],
                                          dtInSec: float,
-                                         simTempData: SimulationTempData,
+                                         simTempData: options.SimulationTempData,
                                          phiRadians: float = 0.0,
                                          b: float = 0.0) -> np.ndarray:
     """
@@ -90,7 +92,7 @@ def propagateRotationRelaxationDiffusion(ux: Union[np.ndarray, float],
     ])
 
 
-def toggle_excitation_refocus(simParams: SimulationParameters, simTempData: SimulationTempData) -> (
+def toggle_excitation_refocus(simParams: options.SimulationParameters, simTempData: options.SimulationTempData) -> (
         float, float, float, float, float):
     """ Decide which gradients and durations to take from the dataclass, dependent on grad mode and excitation """
     if simParams.sequence.gradMode == "Verse":
@@ -130,7 +132,7 @@ def toggle_excitation_refocus(simParams: SimulationParameters, simTempData: Simu
     return duration, gradVerse1, durationVerse1, gradVerse2, durationVerse2
 
 
-def buildGradientVerse(amplitudePulse: np.ndarray, simParams: SimulationParameters, simTempData: SimulationTempData,
+def buildGradientVerse(amplitudePulse: np.ndarray, simParams: options.SimulationParameters, simTempData: options.SimulationTempData,
                        gradCrushRephase: float, durationCrushRephase: float,
                        gradPre: float = 0.0, durationPre: float = 0.0) -> (
         np.ndarray, np.ndarray, float, float):
@@ -181,9 +183,9 @@ def buildGradientVerse(amplitudePulse: np.ndarray, simParams: SimulationParamete
     return gradientAmplitude, pulseAmplitude, totalTime, sum(gradientAmplitude[preN:preN + pulseN]) * deltaT
 
 
-def propagateGradientPulseTime(dictGradPulse: dict,
-                               simParams: SimulationParameters,
-                               simTempData: SimulationTempData,
+def propagateGradientPulseTime(grad_pulse: events.GradPulse,
+                               simParams: options.SimulationParameters,
+                               simTempData: options.SimulationTempData,
                                append: bool = True):
     """
     calculate effect of pulse and gradient combinations or relaxation only per time step
@@ -192,14 +194,14 @@ def propagateGradientPulseTime(dictGradPulse: dict,
     for a time step.
 
     :param append:
-    :param dictGradPulse:
+    :param grad_pulse:
     :param simTempData: simulation temporary parameter class
     :param simParams: simulation parameter class
     :return: magnetization vector population after iteration
     """
-    deltaT = dictGradPulse["temporalSamplingSteps"]
-    pulseT = dictGradPulse["pulseData"]
-    gradT = dictGradPulse["gradientData"]
+    deltaT = grad_pulse.dt_sampling_steps
+    pulseT = grad_pulse.data_pulse
+    gradT = grad_pulse.data_grad
 
     # pick last element from list
     tempMagVec = simTempData.magnetizationPropagation[-1].copy()
@@ -261,13 +263,12 @@ def propagateGradientPulseTime(dictGradPulse: dict,
     return simTempData
 
 
-def propagateRelaxation(deltaT, simTempData: SimulationTempData, simParams: SimulationParameters):
+def propagateRelaxation(deltaT, simTempData: options.SimulationTempData):
     """
     If we dont have any gradients or pulses affecting the spin system we can call this function
     to get the relaxation components of the matrix only
 
     :param simTempData: temporary simulation parameters
-    :param simParams: Simulation parameters
     :param deltaT: Time to propagate the system for [us]
     :return: propagated magnetization vector
 
