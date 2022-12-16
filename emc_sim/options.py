@@ -163,7 +163,6 @@ class SequenceParams(Serializable):
             self.refocusPhase.append(self.refocusPhase[-1])
 
 
-
 @dataclass
 class SimulationSettings(Serializable):
     """
@@ -241,8 +240,11 @@ class SimulationParameters(Serializable):
         # eg. to overwrite an instance (containing non-default values) loaded by a configFile
         # and explicitly trying to change entries to default via cmd input.
         # ToDo: Fix explicit cmd line input
-        if args.config.emcSeqConfig:
-            simParams.sequence = SequenceParams.load(args.config.emcSeqConfig)
+        if args.config.emcSeqConfig or simParams.config.emcSeqConfig:
+            emcSeqConfig = simParams.config.emcSeqConfig
+            if args.config.emcSeqConfig:
+                emcSeqConfig = args.config.emcSeqConfig
+            simParams.sequence = SequenceParams.load(emcSeqConfig)
         simParams.set_acquisition_gradient()
         return simParams
 
