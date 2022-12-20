@@ -50,7 +50,7 @@ def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
     mapped_phase = phase / np.pi * paxLimit / 1.25
     p_idx = np.argmax(np.abs(mapped_phase))
     pax.scatter(x, mapped_phase, color=phaseColour, s=5)
-    pax.annotate(f'{phase[p_idx]/np.pi * 180.0:.1f} °', (x[p_idx], mapped_phase[p_idx]), color=phaseColour)
+    pax.annotate(f'{phase[p_idx]/np.pi * 180.0:.1f} °', (x[p_idx], mapped_phase[p_idx]+0.05*paxLimit), color=phaseColour)
 
     # legend
     lines, labels = givenAx.get_legend_handles_labels()

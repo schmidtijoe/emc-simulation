@@ -38,8 +38,8 @@ def pulseCalibrationIntegral(pulse: np.ndarray,
         phase = simParams.sequence.excitationPhase / 180.0 * np.pi
     else:
         # excitation pulse always 0th pulse
-        angleFlip = simParams.sequence.refocusAngle[pulseNumber - 1]
-        phase = simParams.sequence.refocusPhase[pulseNumber - 1] / 180.0 * np.pi
+        angleFlip = simParams.sequence.refocusAngle[pulseNumber-1]
+        phase = simParams.sequence.refocusPhase[pulseNumber-1] / 180.0 * np.pi
     angleFlip *= np.pi / 180 * simTempData.run.b1  # calculate with applied actual flip angle offset
     b1PulseCalibrated = b1Pulse * (angleFlip / flipAngleNormalizedB1) * np.exp(1j * phase)
     return b1PulseCalibrated
