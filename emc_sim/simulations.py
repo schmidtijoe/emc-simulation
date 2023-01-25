@@ -9,6 +9,49 @@ import time
 logModule = logging.getLogger(__name__)
 
 
+def simulate_pulse(simParams: SimulationParameters, simData: SimulationData) -> (
+    SimulationData, SimulationParameters
+):
+    """
+    For a specific pulse simulate the pulse profile right after to correct phase effects.
+    T1, T2 values shoult be negligible if pulse dration is sufficiently small.
+
+    """
+    logModule.debug(f"Start Simulation: params {pprint.pformat(simData.get_run_params())}\n "
+                    f"Pulse File: - {simParams.config.pathToExternals}{simParams.config.pulseFileExcitation}")
+    # ----- running ----- #
+    t_start = time.time()
+
+    corr_factors = np.linspace(0.9, 1.1, 21)
+
+    for corr_f in corr_factors:
+
+        # globals and sample are initiated within the SimulationParameters class
+        tempData = SimulationTempData(simParams)
+        # we take the parameters of the specific run by assigning directly to the run obj of temp
+        tempData.run = simData
+
+        # ----- prep pulses / sequence ----- #
+        gp = prep.gradientPulsePreparationSingle(
+            simParams=simParams, simTempData=tempData, rephase_corr_factor=corr_f)
+
+        # ----- Starting Calculations ----- #
+        logModule.debug('excitation')
+
+        tempData = functions.propagateGradientPulseTime(
+            grad_pulse=gp,
+            simParams=simParams,
+            simTempData=tempData
+        )
+
+        plotting.plotMagnetization(tempData)
+        plotting.visualizePulseProfile(tempData, phase=True, name=f"correction factor: {corr_f:.2f}")
+
+    t_total = time.time() - t_start
+    logModule.debug(f"Total simulation time: {t_total:.2f} s")
+    return simData, simParams
+
+
 def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
         SimulationData, SimulationParameters):
     """

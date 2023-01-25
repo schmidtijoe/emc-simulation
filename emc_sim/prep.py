@@ -56,3 +56,17 @@ def gradientPulsePreparationSEMC(
 
     return gp_excitation, grad_pulses, timing, acquisition
 
+
+def gradientPulsePreparationSingle(
+        simParams: options.SimulationParameters,
+        simTempData: options.SimulationTempData,
+        rephase_corr_factor: float = 1.0
+        ) -> (events.GradPulse, list, events.Timing, events.GradPulse):
+    logModule.debug('pulse preparation')
+    gp_pulse = events.GradPulse.prep_single_grad_pulse(
+        params=simParams,
+        sim_temp_data=simTempData,
+        grad_rephase_factor=rephase_corr_factor
+    )
+
+    return gp_pulse

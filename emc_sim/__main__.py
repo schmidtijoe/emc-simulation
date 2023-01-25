@@ -145,6 +145,34 @@ def main():
         parser.print_usage()
 
 
+def pulse_profile_sim():
+    """
+        Main function that runs training/prediction defined by command line arguments
+        """
+    parser, prog_args = options.createCommandlineParser()
+
+    simParams = options.SimulationParameters.from_cmd_args(prog_args)
+    # set logging level after possible config file read
+    if simParams.config.debuggingFlag:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+
+    logging.basicConfig(format='%(asctime)s %(levelname)s :: %(name)s --  %(message)s',
+                        datefmt='%I:%M:%S', level=level)
+    simData = options.SimulationData.from_cmd_args(prog_args)
+
+    logging.info("starting simulation")
+    logging.info(f"spatial resolution set: {simParams.settings.lengthZ * 2 / simParams.settings.sampleNumber * 1e6:.3f}"
+                 f" um")
+    logging.debug(pprint.pformat(simParams.to_dict()))
+    try:
+        simulations.simulate_pulse(simParams, simData)
+    except (AttributeError, ValueError) as e:
+        print(e)
+        parser.print_usage()
+
+
 def test():
     logging.basicConfig(level=logging.DEBUG)
     parser, prog_args = options.createCommandlineParser()
@@ -159,4 +187,5 @@ def test():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    pulse_profile_sim()

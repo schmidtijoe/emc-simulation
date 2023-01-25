@@ -139,6 +139,71 @@ class GradPulse:
         return grad_pulse
 
     @classmethod
+    def prep_single_grad_pulse(cls, params: options.SimulationParameters = options.SimulationParameters(),
+                               sim_temp_data: options.SimulationTempData = None,
+                               grad_rephase_factor: float = 1.0):
+        # -- prep pulse
+        pulse_type: str = 'Excitation'  # just set it
+        logModule.debug(f'prep pulse {pulse_type}; # {0}')
+        grad_pulse = cls(pulse_type=pulse_type, params=params, pulse_number=0, sim_temp_data=sim_temp_data)
+        # read file
+        sim_temp_data.excitation_flag = True
+
+        path = os.path.abspath(
+            os.path.join(params.config.pathToExternals, params.config.pulseFileExcitation))
+
+        duration_pulse = params.sequence.durationExcitation
+
+        pulse_shape, pulse_num_sampling_points = functions.readPulseFile(path)
+
+        # calculate and normalize
+        dt_pulse = duration_pulse / pulse_num_sampling_points
+        pulse = functions.pulseCalibrationIntegral(
+            pulse=pulse_shape,
+            deltaT=dt_pulse,
+            pulseNumber=0,
+            simParams=params,
+            simTempData=sim_temp_data)
+
+        # build verse pulse gradient
+        grad_verse, pulse_verse, duration, area_gradient_verse = functions.buildGradientVerse(
+            amplitudePulse=pulse,
+            simParams=params,
+            simTempData=sim_temp_data,
+            gradCrushRephase=0.0,
+            durationCrushRephase=0.0,
+            gradPre=0.0,
+            durationPre=0.0
+        )
+
+        # When exciting with a slice selective gradient the gradient creates phase offset along the slice axis.
+        # We want to rephase this phase offset (as is the original use of the gradient in the acquisition scheme).
+        # However, the rephasing gradient is usually used with half the gradient moment area (at 90° pulses), which
+        # is not quite accurate.
+        # After investigation a manual correction term can be put in here for accuracy * 1.038
+        gradient_excitation_phase_rewind = - area_gradient_verse / (
+                grad_rephase_factor * 2 * params.sequence.durationExcitationRephase)
+
+        # The gradient pulse scheme needs to be re-done with accommodating those changes in the rephase gradient of
+        # the excitation
+        grad_verse, pulse_verse, duration, area_gradient_verse = functions.buildGradientVerse(
+            amplitudePulse=pulse,
+            simParams=params,
+            simTempData=sim_temp_data,
+            gradCrushRephase=gradient_excitation_phase_rewind,
+            durationCrushRephase=params.sequence.durationExcitationRephase
+        )
+
+        # assign vars
+        grad_pulse.num_sampling_points = pulse_num_sampling_points
+        grad_pulse.dt_sampling_steps = dt_pulse
+        grad_pulse.data_grad = grad_verse
+        grad_pulse.data_pulse = pulse_verse
+        grad_pulse.duration = pulse_num_sampling_points * dt_pulse
+
+        return grad_pulse
+
+    @classmethod
     def prep_acquisition(cls, params: options.SimulationParameters = options.SimulationParameters()):
         logModule.debug("prep acquisition")
         dt_sampling_steps = params.sequence.durationAcquisition / params.settings.acquisitionNumber

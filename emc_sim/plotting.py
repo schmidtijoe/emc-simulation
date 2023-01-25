@@ -86,26 +86,33 @@ def visualizeAllGradientPulses(gp_data: list):
     plt.show()
 
 
-def visualizePulseProfile(array_mags, phase=False):
+def visualizePulseProfile(tempData: options.SimulationTempData, phase=False, name=f""):
+    array_mags = tempData.magnetizationPropagation
     if phase:
         cols = 2
     else:
         cols = 1
-    p_num = array_mags.shape[0]
+    if isinstance(array_mags, list):
+        p_num = array_mags.__len__() - 1
+    else:
+        p_num = array_mags.shape[0] - 1
     m_fig = plt.figure(figsize=(12, 4 * p_num), dpi=200)
-    for k_ind in range(p_num):
-        m_ax = m_fig.add_subplot(p_num, cols, (cols * k_ind + 1))
-        m_ax.plot(np.arange(array_mags[k_ind].shape[0]), np.linalg.norm(array_mags[k_ind][:, 0:2], axis=1),
+    m_fig.suptitle(name)
+    for k_ind in np.arange(1, p_num+1):
+        plot_array = array_mags[k_ind][0] + 1j * array_mags[k_ind][1]
+        m_ax = m_fig.add_subplot(p_num, cols, (cols * (k_ind-1) + 1))
+        m_ax.plot(tempData.sampleAxis, np.abs(plot_array),
                   color='green', linewidth=0.75)
-        m_ax.fill_between(np.arange(array_mags[k_ind].shape[0]), np.linalg.norm(array_mags[k_ind][:, 0:2], axis=1),
+        m_ax.fill_between(tempData.sampleAxis, np.abs(plot_array),
                           color='green', alpha=0.5)
         m_ax.set_ylabel('transverse magnetization strength', color='green')
         m_ax.tick_params(axis='y', labelcolor="green")
     if phase:
-        for k_ind in range(p_num):
-            m_ax = m_fig.add_subplot(p_num, cols, (cols * k_ind + 2))
-            m_ax.plot(np.arange(array_mags[k_ind].shape[0]),
-                      np.arctan(array_mags[k_ind][:, 1] / array_mags[k_ind][:, 0]) / np.pi,
+        for k_ind in np.arange(1, p_num + 1):
+            plot_array = array_mags[k_ind][0] + 1j * array_mags[k_ind][1]
+            m_ax = m_fig.add_subplot(p_num, cols, (cols * (k_ind - 1) + 2))
+            m_ax.plot(tempData.sampleAxis,
+                      np.angle(plot_array) / np.pi,
                       color='#043600', linewidth=0.75)
             m_ax.set_ylabel(r'transverse magnetization phase [$\pi$]', color='green')
             m_ax.tick_params(axis='y', labelcolor="green")
