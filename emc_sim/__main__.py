@@ -180,7 +180,6 @@ def test():
     simData = options.SimulationData.from_cmd_args(prog_args)
     try:
         simulate_single(simParams, simData, save=True)
-    # exit(0)
     except AttributeError as e:
         print(e)
         parser.print_usage()

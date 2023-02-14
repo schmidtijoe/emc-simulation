@@ -86,7 +86,7 @@ def visualizeAllGradientPulses(gp_data: list):
     plt.show()
 
 
-def visualizePulseProfile(tempData: options.SimulationTempData, phase=False, name=f""):
+def visualizePulseProfile(tempData: options.SimulationTempData, phase=False, name=f"", save=None):
     array_mags = tempData.magnetizationPropagation
     if phase:
         cols = 2
@@ -117,7 +117,11 @@ def visualizePulseProfile(tempData: options.SimulationTempData, phase=False, nam
             m_ax.set_ylabel(r'transverse magnetization phase [$\pi$]', color='green')
             m_ax.tick_params(axis='y', labelcolor="green")
     plt.tight_layout()
-    plt.show()
+    if save:
+        plt.savefig(save, dpi=200, bbox_inches='tight')
+        plt.close(m_fig)
+    else:
+        plt.show()
     return
 
 
@@ -177,7 +181,7 @@ def visualizeSignalResponse(emcCurve, t2b1: tuple = None):
     plt.show()
 
 
-def plotMagnetization(tempData: options.SimulationTempData):
+def plotMagnetization(tempData: options.SimulationTempData, save=None):
     fig = plt.figure(figsize=(8, 8), dpi=200)
 
     real = tempData.magnetizationPropagation[-1][0]
@@ -201,4 +205,8 @@ def plotMagnetization(tempData: options.SimulationTempData):
     ax.plot(x_ax, absolute, color='#29856c', label="absolute")
     ax.plot(x_ax, z, color='#5a2985', label="z")
     ax.legend()
-    plt.show()
+    if save:
+        plt.savefig(save, dpi=200, bbox_inches='tight')
+        plt.close(fig)
+    else:
+        plt.show()
