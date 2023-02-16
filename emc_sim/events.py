@@ -1,6 +1,7 @@
 import numpy as np
 from emc_sim import options, functions
-import os
+from rf_pulse_files import rfpf
+import pathlib as plib
 import typing
 import logging
 
@@ -49,25 +50,28 @@ class GradPulse:
         # read file
         if grad_pulse.excitation_flag:
             sim_temp_data.excitation_flag = True
-            path = os.path.abspath(
-                os.path.join(params.config.pathToExternals, params.config.pulseFileExcitation))
+            path = plib.Path(params.config.pathToExternals).absolute().joinpath(params.config.pulseFileExcitation)
             grad_crush_rephase = params.sequence.gradientExcitationRephase
             duration_crush_rephase = params.sequence.durationExcitationRephase
             duration_pulse = params.sequence.durationExcitation
         else:
-            path = os.path.abspath(
-                os.path.join(params.config.pathToExternals, params.config.pulseFileRefocus))
+            path = plib.Path(params.config.pathToExternals).absolute().joinpath(params.config.pulseFileRefocus)
             sim_temp_data.excitation_flag = False
             grad_crush_rephase = params.sequence.gradientCrush
             duration_crush_rephase = params.sequence.durationCrush
             duration_pulse = params.sequence.durationRefocus
-        pulse_shape, pulse_num_sampling_points = functions.readPulseFile(path)
+        # change to rfpf object here
+        rf = rfpf.RF.load(path)
+
+        if np.abs(rf.duration_in_us - duration_pulse) > 1e-5:
+            # resample pulse
+            rf.resample_to_duration(duration_in_us=int(duration_pulse))
+        pulse = rf.amplitude*np.exp(1j*rf.phase)
 
         # calculate and normalize
-        dt_pulse = duration_pulse / pulse_num_sampling_points
         pulse = functions.pulseCalibrationIntegral(
-            pulse=pulse_shape,
-            deltaT=dt_pulse,
+            pulse=pulse,
+            deltaT=rf.get_dt_sampling_in_us(),
             pulseNumber=pulse_number,
             simParams=params,
             simTempData=sim_temp_data)
@@ -130,11 +134,11 @@ class GradPulse:
             )
 
         # assign vars
-        grad_pulse.num_sampling_points = pulse_num_sampling_points
-        grad_pulse.dt_sampling_steps = dt_pulse
+        grad_pulse.num_sampling_points = rf.num_samples
+        grad_pulse.dt_sampling_steps = rf.get_dt_sampling_in_us()
         grad_pulse.data_grad = grad_verse
         grad_pulse.data_pulse = pulse_verse
-        grad_pulse.duration = pulse_num_sampling_points * dt_pulse
+        grad_pulse.duration = rf.duration_in_us
 
         return grad_pulse
 
@@ -149,18 +153,19 @@ class GradPulse:
         # read file
         sim_temp_data.excitation_flag = True
 
-        path = os.path.abspath(
-            os.path.join(params.config.pathToExternals, params.config.pulseFileExcitation))
+        path = plib.Path(params.config.pathToExternals).absolute().joinpath(params.config.pulseFileExcitation)
 
         duration_pulse = params.sequence.durationExcitation
+        rf: rfpf.RF = rfpf.RF.load(path)
 
-        pulse_shape, pulse_num_sampling_points = functions.readPulseFile(path)
+        if np.abs(rf.duration_in_us - duration_pulse) > 1e-5:
+            # resample pulse
+            rf.resample_to_duration(duration_in_us=int(duration_pulse))
 
         # calculate and normalize
-        dt_pulse = duration_pulse / pulse_num_sampling_points
         pulse = functions.pulseCalibrationIntegral(
-            pulse=pulse_shape,
-            deltaT=dt_pulse,
+            pulse=rf.amplitude * np.exp(1j * rf.phase),
+            deltaT=rf.get_dt_sampling_in_us(),
             pulseNumber=0,
             simParams=params,
             simTempData=sim_temp_data)
@@ -195,11 +200,11 @@ class GradPulse:
         )
 
         # assign vars
-        grad_pulse.num_sampling_points = pulse_num_sampling_points
-        grad_pulse.dt_sampling_steps = dt_pulse
+        grad_pulse.num_sampling_points = rf.num_samples
+        grad_pulse.dt_sampling_steps = rf.get_dt_sampling_in_us()
         grad_pulse.data_grad = grad_verse
         grad_pulse.data_pulse = pulse_verse
-        grad_pulse.duration = pulse_num_sampling_points * dt_pulse
+        grad_pulse.duration = rf.duration_in_us
 
         return grad_pulse
 

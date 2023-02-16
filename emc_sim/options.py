@@ -8,7 +8,7 @@ import logging
 from scipy import stats
 from emc_sim import utils
 import pandas as pd
-from pathlib import Path
+import pathlib as plib
 
 logModule = logging.getLogger(__name__)
 
@@ -60,10 +60,10 @@ class SimulationConfig(Serializable):
     # set filepath to external pulse-files (pkl or json)
     pathToExternals: str = "./external"
 
-    # name of external pulse file for excitation
-    pulseFileExcitation: str = 'gauss_shape.txt'
-    # name of external pulse file for refocussing
-    pulseFileRefocus: str = 'gauss_shape.txt'
+    # name of external pulse file for excitation - assumed to be rfpf compatible. See rfpf to convert from .txt or .pta
+    pulseFileExcitation: str = 'slr_fa90_dur2001_lin-phase.pkl'
+    # name of external pulse file for refocussing - assumed to be rfpf compatible. See rfpf to convert from .txt or .pta
+    pulseFileRefocus: str = 'slfrank_se_pulse_linear_phase.pkl'
 
     # set flag to visualize pulse profiles and sequence scheme
     visualize: bool = True
@@ -272,13 +272,14 @@ class SimulationParameters(Serializable):
         return nonDefaultConfig, nonDefaultSettings, nonDefaultSequence
 
     def save_database(self, database: pd.DataFrame) -> None:
-        base_path = Path(self.config.savePath).absolute()
+        base_path = plib.Path(self.config.savePath).absolute()
         # create parent folder ifn existent
-        utils.create_folder_ifn_exist(base_path)
+        plib.Path.mkdir(base_path, exist_ok=True, parents=True)
 
         db_path = base_path.joinpath(self.config.saveFile)
         config_path = base_path.joinpath(f"{db_path.stem}_config.json")
 
+        logModule.info(f"writing file {db_path}")
         # mode dependent on file ending given
         save_fn = {
             ".pkl": database.to_pickle,
@@ -288,6 +289,7 @@ class SimulationParameters(Serializable):
                                             f"Supported: {list(save_fn.keys())}"
         save_fn.get(db_path.suffix)(db_path.__str__())
         # save used config
+        logModule.info(f"writing file {config_path}")
         self.save(config_path, indent=2, separators=(',', ':'))
 
 

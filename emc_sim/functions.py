@@ -32,7 +32,7 @@ def pulseCalibrationIntegral(pulse: np.ndarray,
     # normalize
     b1Pulse = pulse / np.linalg.norm(pulse)
     # integrate (discrete steps) total flip angle achieved with the normalized pulse
-    flipAngleNormalizedB1 = np.sum(b1Pulse * simParams.sequence.gammaPi) * deltaT * 1e-6
+    flipAngleNormalizedB1 = np.sum(np.abs(b1Pulse) * simParams.sequence.gammaPi) * deltaT * 1e-6
     if simTempData.excitation_flag:
         angleFlip = simParams.sequence.excitationAngle
         phase = simParams.sequence.excitationPhase / 180.0 * np.pi
@@ -132,7 +132,8 @@ def toggle_excitation_refocus(simParams: options.SimulationParameters, simTempDa
     return duration, gradVerse1, durationVerse1, gradVerse2, durationVerse2
 
 
-def buildGradientVerse(amplitudePulse: np.ndarray, simParams: options.SimulationParameters, simTempData: options.SimulationTempData,
+def buildGradientVerse(amplitudePulse: np.ndarray, simParams: options.SimulationParameters,
+                       simTempData: options.SimulationTempData,
                        gradCrushRephase: float, durationCrushRephase: float,
                        gradPre: float = 0.0, durationPre: float = 0.0) -> (
         np.ndarray, np.ndarray, float, float):
