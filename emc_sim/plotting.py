@@ -50,7 +50,8 @@ def visualizeGradientPulse(givenAx, gradientArray, pulseArray):
     mapped_phase = phase / np.pi * paxLimit / 1.25
     p_idx = np.argmax(np.abs(mapped_phase))
     pax.scatter(x, mapped_phase, color=phaseColour, s=5)
-    pax.annotate(f'{phase[p_idx]/np.pi * 180.0:.1f} °', (x[p_idx], mapped_phase[p_idx]+0.05*paxLimit), color=phaseColour)
+    pax.annotate(f'{phase[p_idx] / np.pi * 180.0:.1f} °', (x[p_idx], mapped_phase[p_idx] + 0.05 * paxLimit),
+                 color=phaseColour)
 
     # legend
     lines, labels = givenAx.get_legend_handles_labels()
@@ -71,7 +72,7 @@ def visualizeAllGradientPulses(gp_data: list):
     for pos_idx in range(gp_data.__len__()):
         plotData = gp_data[pos_idx]
         # create axes
-        ax = fig.add_subplot(gp_data.__len__(), 1, pos_idx+1)
+        ax = fig.add_subplot(gp_data.__len__(), 1, pos_idx + 1)
         gpType = plotData.pulse_type
         ax.set_title(f"Pulse type: {gpType}")
         if gpType == "Acquisition":
@@ -98,9 +99,9 @@ def visualizePulseProfile(tempData: options.SimulationTempData, phase=False, nam
         p_num = array_mags.shape[0] - 1
     m_fig = plt.figure(figsize=(12, 4 * p_num), dpi=200)
     m_fig.suptitle(name)
-    for k_ind in np.arange(1, p_num+1):
+    for k_ind in np.arange(1, p_num + 1):
         plot_array = array_mags[k_ind][0] + 1j * array_mags[k_ind][1]
-        m_ax = m_fig.add_subplot(p_num, cols, (cols * (k_ind-1) + 1))
+        m_ax = m_fig.add_subplot(p_num, cols, (cols * (k_ind - 1) + 1))
         m_ax.plot(tempData.sampleAxis, np.abs(plot_array),
                   color='green', linewidth=0.75)
         m_ax.fill_between(tempData.sampleAxis, np.abs(plot_array),
@@ -174,30 +175,42 @@ def visualizeSignalResponse(emcCurve, t2b1: tuple = None):
     fig = plt.figure(figsize=(7, 4), dpi=200)
     ax = fig.add_subplot()
     if t2b1 is not None:
-        ax.set_title(f't2: {t2b1[0]*1000:.1f}, b1: {t2b1[1]:.2f}')
+        ax.set_title(f't2: {t2b1[0] * 1000:.1f}, b1: {t2b1[1]:.2f}')
     ax.set_xlabel(f'echo number')
     ax.set_ylabel(f'signal response intensity')
     ax.plot(np.arange(len(emcCurve)), emcCurve)
     plt.show()
 
 
-def plotMagnetization(tempData: options.SimulationTempData, save=None):
-    fig = plt.figure(figsize=(8, 8), dpi=200)
+def plotMagnetization(tempData: options.SimulationTempData, save=None, slice_thickness: float = None):
+    fig = plt.figure(figsize=(10, 6), dpi=200)
+    gs = fig.add_gridspec(2, 2, width_ratios=[2, 1])
 
     real = tempData.magnetizationPropagation[-1][0]
     imag = tempData.magnetizationPropagation[-1][1]
-    absolute = np.linalg.norm(tempData.magnetizationPropagation[-1][0:2], axis=0)
+    mag = real + 1j * imag
+
+    absolute = np.abs(mag)
+    phase = np.angle(mag)
     z = tempData.magnetizationPropagation[-1][2]
     x_ax = tempData.sampleAxis * 1e3
 
-    ax = fig.add_subplot(211)
+    ax = fig.add_subplot(gs[0, :])
     ax.set_xlabel(f'slice position [mm]')
     ax.set_ylabel(f'transverse magnetization [a.u.]')
-    ax.plot(x_ax, real, color='#29856c', label="real")
-    ax.plot(x_ax, imag, color='#5a2985', label="imag")
+    color = '#29856c'
+    ax.plot(x_ax, absolute, color=color, label="$|M_xy|$")
+    ax.tick_params(axis='y', colors=color)
+    ax.yaxis.label.set_color(color)
+    ax = ax.twinx()
+    color = '#5a2985'
+    ax.set_ylabel(f'magnetization phase [$\\pi$]')
+    ax.plot(x_ax, phase / np.pi, color=color, alpha=0.85, label="$\\theta$")
+    ax.tick_params(axis='y', colors=color)
+    ax.yaxis.label.set_color(color)
     ax.legend()
 
-    ax = fig.add_subplot(212)
+    ax = fig.add_subplot(gs[1, 0])
     ax.set_xlabel(f'slice position [mm]')
     ax.set_ylabel(f'magnetization [a.u.]')
     ax.set_ylim(-1.1, 1.1)
@@ -205,6 +218,23 @@ def plotMagnetization(tempData: options.SimulationTempData, save=None):
     ax.plot(x_ax, absolute, color='#29856c', label="absolute")
     ax.plot(x_ax, z, color='#5a2985', label="z")
     ax.legend()
+
+    start_p = int(x_ax.shape[0]/2 - x_ax.shape[0]/12)
+    end_p = int(x_ax.shape[0]/2 + x_ax.shape[0]/12)
+    ax = fig.add_subplot(gs[1, 1])
+    ax.set_xlabel(f'slice position [mm]')
+    ax.set_ylabel(f'magnetization [a.u.]')
+    ax.set_ylim(-1.1, 1.1)
+    ticks = np.arange(-3, 4) * 0.5
+    ax.set_xticks(ticks)
+    ax.fill_between(x_ax[start_p:end_p], absolute[start_p:end_p], color='#29856c', alpha=0.5)
+    ax.plot(x_ax[start_p:end_p], absolute[start_p:end_p], color='#29856c', label="absolute")
+    ax.plot(x_ax[start_p:end_p], z[start_p:end_p], color='#5a2985', label="z")
+    if slice_thickness is not None:
+        ax.vlines([-slice_thickness/2, slice_thickness/2], -0.5, 1.0, color='orange', label='desired slice thickness')
+    ax.legend()
+
+    plt.tight_layout()
     if save:
         plt.savefig(save, dpi=200, bbox_inches='tight')
         plt.close(fig)

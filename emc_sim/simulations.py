@@ -1,5 +1,5 @@
 import pprint
-
+import pathlib as plb
 import numpy as np
 import logging
 from emc_sim.options import SimulationParameters, SimulationTempData, SimulationData
@@ -22,7 +22,7 @@ def simulate_pulse(simParams: SimulationParameters, simData: SimulationData) -> 
     # ----- running ----- #
     t_start = time.time()
 
-    corr_factors = np.linspace(0.9, 1.1, 21)
+    corr_factors = [1.1]
 
     for corr_f in corr_factors:
 
@@ -44,8 +44,15 @@ def simulate_pulse(simParams: SimulationParameters, simData: SimulationData) -> 
             simTempData=tempData
         )
 
-        plotting.plotMagnetization(tempData)
-        plotting.visualizePulseProfile(tempData, phase=True, name=f"correction factor: {corr_f:.2f}")
+        plotting.plotMagnetization(
+            tempData,
+            slice_thickness=0.7,
+            save=f"test/mag_profile_{plb.Path(simParams.config.pulseFileExcitation).stem}_corr-{corr_f:.3f}.png"
+        )
+        plotting.visualizePulseProfile(
+            tempData, phase=True,
+            save=f"test/pulse_profile_{plb.Path(simParams.config.pulseFileExcitation).stem}_corr-{corr_f:.3f}.png"
+        )
 
     t_total = time.time() - t_start
     logModule.debug(f"Total simulation time: {t_total:.2f} s")

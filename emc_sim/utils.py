@@ -13,11 +13,6 @@ import tqdm
 logModule = logging.getLogger(__name__)
 
 
-def create_folder_ifn_exist(folder):
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-
-
 def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
                     normalization: str = "max", by_value: float = None) -> np.ndarray:
     norm = {

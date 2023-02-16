@@ -11,6 +11,13 @@ def init_prep_for_visualization(simParams: options.SimulationParameters):
     gp_excitation, gps_refocusing, timing, acquisition = gradientPulsePreparationSEMC(
         simParams=simParams, simTempData=tempData)
 
+    # -- excitation
+    tempData = functions.propagateGradientPulseTime(
+        grad_pulse=gp_excitation,
+        simParams=simParams,
+        simTempData=tempData
+    )
+
     # visualize
     if simParams.config.visualize:
         logging.debug('Visualization ON - Turn off when processing multiple instances!')
