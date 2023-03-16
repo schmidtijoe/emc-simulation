@@ -80,8 +80,8 @@ def simulate_multi(
 
     start = time.time()
 
-    pool = mp.Pool(simParams.config.mpNumCpus)
-    results = pool.map(wrapSimulateForMP, mp_lists)
+    with mp.Pool(simParams.config.mpNumCpus) as p:
+        results = list(tqdm.tqdm(p.imap(wrapSimulateForMP, mp_lists), total=mp_lists.__len__(), desc="mp pes"))
 
     result_list_of_dict = list(chain(*results))
     dataBase = pd.DataFrame(result_list_of_dict)
