@@ -1,6 +1,6 @@
 import numpy as np
 from emc_sim import options, functions
-from rf_pulse_files import rfpf
+from rf_pulse_files.rfpf import RF
 import pathlib as plib
 import typing
 import logging
@@ -61,7 +61,7 @@ class GradPulse:
             duration_crush_rephase = params.sequence.durationCrush
             duration_pulse = params.sequence.durationRefocus
         # change to rfpf object here
-        rf = rfpf.RF.load(path)
+        rf = RF.RF.load(path)
 
         if np.abs(rf.duration_in_us - duration_pulse) > 1e-5:
             # resample pulse
