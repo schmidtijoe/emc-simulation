@@ -1,6 +1,6 @@
 /pyvenv.cfg
 .idea/
-__pycache__/
+**/__pycache__/
 /portal/
 /dev/
 /test/
