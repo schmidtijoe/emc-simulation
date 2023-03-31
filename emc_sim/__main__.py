@@ -6,7 +6,6 @@ import tqdm
 import time
 from itertools import chain
 import pprint
-from rf_pulse_files.rfpf import RF
 logging.getLogger('matplotlib.font_manager').disabled = True
 
 
