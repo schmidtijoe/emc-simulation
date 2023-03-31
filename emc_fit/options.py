@@ -95,7 +95,7 @@ class FitOptions:
         path = Path(self.config.OutputPath).absolute()
         if not path.stem == "fit":
             path = path.joinpath("fit/")
-        utils.create_folder_ifn_exist(path)
+        path.mkdir(parents=True, exist_ok=True)
         save_path = path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii")
         logModule.info(f"Saving File: {save_path}")
 

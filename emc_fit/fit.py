@@ -51,7 +51,7 @@ class Fit:
         self.b1_map = np.zeros(self.nii_data.shape[:-1])
 
     def fit(self):
-        return
+        raise NotImplementedError
 
     def get_maps(self) -> (np.ndarray, np.ndarray):
         self.fit()

@@ -99,7 +99,13 @@ def plot_denoized(origData: np.ndarray, denoizedData: np.ndarray, save: str = ""
     ax = fig.add_subplot(gs[0, 4])
     ax.axis(False)
     ax.grid(False)
-    img = ax.imshow((origData[:, :, z] - denoizedData[:, :, z]) / origData[:, :, z])
+    showData = np.divide(
+        origData[:, :, z] - denoizedData[:, :, z],
+        origData[:, :, z],
+        where=origData[:, :, z]>1e-7,
+        out=np.zeros_like(origData[:, :, z])
+    )
+    img = ax.imshow(showData)
     ax = fig.add_subplot(gs[0, 5])
     plt.colorbar(img, cax=ax)
 
