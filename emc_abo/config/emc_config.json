@@ -1,0 +1,83 @@
+{
+  "config":{
+    "configFile":"./config/emc_config.json",
+    "savePath":"./config/db_tmp/",
+    "saveFile":"db_abo.pkl",
+    "pathToExternals":"./emc-simulation/rf_pulse_files/pulses/",
+    "pulseFileExcitation":"semc_rfpf.pkl",
+    "pulseFileRefocus":"semc_rfpf.pkl",
+    "visualize":false,
+    "diffusionFlag":false,
+    "debuggingFlag":false,
+    "multiprocessing":true,
+    "mpHeadroom":4,
+    "mpNumCpus":4
+  },
+  "sequence":{
+    "gammaHz": 42577478.518,
+    "ETL": 7,
+    "ESP": 9.760000000000002,
+    "bw": 302.0,
+    "gradMode": "Normal",
+    "excitationAngle": 90.0,
+    "excitationPhase": 90.0,
+    "gradientExcitation": -24.77706739958938,
+    "durationExcitation": 2600,
+    "gradientExcitationRephase": -40.0,
+    "durationExcitationRephase": 800.0,
+    "gradientExcitationVerse1": 0.0,
+    "gradientExcitationVerse2": 0.0,
+    "durationExcitationVerse1": 0.0,
+    "durationExcitationVerse2": 0.0,
+    "refocusAngle": [
+      140.0,
+      140.0,
+      140.0,
+      140.0,
+      140.0,
+      140.0,
+      140.0
+    ],
+    "refocusPhase": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "gradientRefocus": -17.17876673038197,
+    "durationRefocus": 3000,
+    "gradientCrush": -40.0,
+    "durationCrush": 1660.0000000000002,
+    "gradientRefocusVerse1": 0.0,
+    "gradientRefocusVerse2": 0.0,
+    "durationRefocusVerse1": 0.0,
+    "durationRefocusVerse2": 0.0
+  },
+  "settings":{
+    "sampleNumber":2000,
+    "lengthZ":0.01,
+    "acquisitionNumber":50,
+    "t1_list":[
+      1.5
+    ],
+    "t2_list":[
+      [
+        10.0,
+        30.0,
+        15
+      ]
+    ],
+    "b1_list":[
+      0.5,
+      1.0,
+      1.4
+    ],
+    "d_list":[
+      700.0
+    ],
+    "total_num_sim":5824
+  }
+}
