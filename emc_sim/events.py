@@ -1,6 +1,6 @@
 import numpy as np
 from emc_sim import options, functions
-import rf_pulse_files.rf_pulse_files as rfpf
+import rf_pulse_files as rfpf
 import pathlib as plib
 import typing
 import logging
