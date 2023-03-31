@@ -11,7 +11,7 @@
     "debuggingFlag":false,
     "multiprocessing":false,
     "mpHeadroom":16,
-    "mpNumCpus":1
+    "mpNumCpus":4
   },
   "sequence":{
     "gammaHz":42577478.518,

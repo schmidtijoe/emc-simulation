@@ -2,7 +2,6 @@ import os
 
 # set maximum number of threads for multiprocessing -> numpy is sometimes greedy,
 # if code is vectorized neatly it might take more resources than wanted by operator
-import typing
 
 os.environ["OMP_NUM_THREADS"] = "64"  # export OMP_NUM_THREADS=4
 os.environ["OPENBLAS_NUM_THREADS"] = "64"  # export OPENBLAS_NUM_THREADS=4
