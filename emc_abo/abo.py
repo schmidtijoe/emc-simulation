@@ -10,6 +10,8 @@ import logging
 import multiprocessing as mp
 import tqdm
 import scipy.optimize as spo
+import json
+import time
 
 logModule = logging.getLogger(__name__)
 
@@ -38,17 +40,18 @@ class Optimizer:
         self.rf_0[:self.emc_params.sequence.ETL] = np.array(self.emc_params.sequence.refocusAngle)
 
         # for multiprocessing setup
-        self.mp : bool = multiprocessing
+        self.mp: bool = multiprocessing
         max_cpus = np.max([mp.cpu_count() - 8, 4])        # leave at least 8 threads, take at least 4
         self.num_cpus = np.min([mp_num_cpus, max_cpus])
 
         # for optimization
-        self.opt_max_iter: int = 20
+        self.opt_max_iter: int = 50
+        self.opt_popsize: int = 15
 
         # result
-        self.result: np.ndarray = np.zeros_like(self.rf_0)
+        self.result: spo.OptimizeResult = spo.OptimizeResult()
 
-    def _func_to_optimize(self, x: np.ndarray):
+    def _func_to_optimize(self, x: np.ndarray, verbose=True):
         self.emc_params.refocusAngle = x[:self.emc_params.sequence.ETL].tolist()
         self.emc_params.refocusPhase = x[self.emc_params.sequence.ETL:].tolist()
 
@@ -65,19 +68,17 @@ class Optimizer:
             return emcAmplitude.emcSignal
         logModule.debug("Simulate")
 
-        if self.mp:
-            logModule.info(f"Multiprocessing using {self.num_cpus} threads")
-            with mp.Pool(self.emc_params.config.mpNumCpus) as p:
-                results = list(tqdm.tqdm(p.imap(wrap_for_mp, idx_list), total=param_list.__len__(), desc="mp processing sim"))
-        else:
-            logModule.info("Single thread processing")
-            results = []
+        results = []
+        if verbose:
             for idx in tqdm.trange(idx_list.__len__(), desc="processing sim"):
+                results.append(wrap_for_mp(idx))
+        else:
+            for idx in range(idx_list.__len__()):
                 results.append(wrap_for_mp(idx))
 
         signal_curves = np.zeros((len(results), self.emc_params.sequence.ETL))
 
-        for idx in tqdm.trange(len(results), desc="read mp results"):
+        for idx in range(len(results)):
             signal_curves[idx] = results[idx]
 
         # calculate correlation
@@ -86,10 +87,32 @@ class Optimizer:
         return objective
 
     def optimize(self):
+        popsize = self.opt_popsize
+        max_iter = self.opt_max_iter
+        N = self.rf_0.shape[0]
+        logModule.info("start optimization")
+        logModule.info(f"heavy compute: using {self.num_cpus} workers.")
+        logModule.info(f"involving N * popsize * max_iter computation steps.")
+        logModule.info(f"N = {N}; popsize = {popsize}; max_iter = {max_iter}")
+        logModule.info(f"total: {N * popsize * max_iter}")
+        logModule.info(f"evaluate single step")
+        start = time.time()
+        _ = self.test_obj_func()
+        total = time.time() - start
+        logModule.info(f"single run time: {total:.2f} sec; ({total / 60:.1f} min)")
+        projected_t = total / self.num_cpus * N * popsize * max_iter * 1.2
+        logModule.info(f"projected time: {projected_t:.2f} sec; ({projected_t / 60:.1f} min)")
+        if self.mp:
+            workers = self.num_cpus
+            verbose = [False]
+        else:
+            workers = 1
+            verbose = [True]
         self.result = spo.differential_evolution(
-            self._func_to_optimize, bounds=self.bounds,
-            maxiter=20, x0=self.rf_0
+            self._func_to_optimize, popsize=popsize, args=verbose, bounds=self.bounds,
+            maxiter=max_iter, x0=self.rf_0, workers=workers, disp=True
         )
+        logModule.info(f"finished!")
 
     def get_optimal_pulse_specs(self):
         return self.result
@@ -97,11 +120,30 @@ class Optimizer:
     def test_obj_func(self):
         return self._func_to_optimize(self.rf_0)
 
+    def save(self, path):
+        rf_fa = self.result.x[:self.emc_params.sequence.ETL]
+        rf_phase = self.result.x[self.emc_params.sequence.ETL:]
+        if isinstance(rf_fa, np.ndarray):
+            rf_fa = rf_fa.tolist()
+        if isinstance(rf_phase, np.ndarray):
+            rf_phase = rf_phase.tolist()
+        save_dict = {
+            "function_value": self.result.fun,
+            "opt_rf_fa": rf_fa,
+            "opt_rf_phase": rf_phase
+        }
+        save_path = pathlib.Path(path).absolute()
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        logModule.info(f"writing file - {save_path}")
+        with open(save_path, "w") as j_file:
+            json.dump(save_dict, j_file, indent=2)
+
 
 if __name__ == '__main__':
-    abo_optimizer = Optimizer(config_path="config/emc_config.json")
+    abo_optimizer = Optimizer(config_path="./emc_abo/config/emc_config.json", multiprocessing=True)
     test_objective = abo_optimizer.test_obj_func()
     print(test_objective)
     abo_optimizer.optimize()
     test_res = abo_optimizer.get_optimal_pulse_specs()
     print(test_res)
+    abo_optimizer.save("./emc_abo/result/optim_fa.json")
