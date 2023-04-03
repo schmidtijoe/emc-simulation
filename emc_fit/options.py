@@ -1,7 +1,6 @@
 import numpy as np
 from simple_parsing import ArgumentParser, helpers, choice, field
 from dataclasses import dataclass
-from emc_sim import utils
 from pathlib import Path
 import json
 import nibabel as nib
