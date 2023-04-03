@@ -83,7 +83,9 @@ class Optimizer:
 
         # calculate correlation
         corr_matrix = np.corrcoef(signal_curves)
-        objective = np.sum(corr_matrix)  # diagonals always sum to 1
+        # set diagonal and upper half 0, square
+        obj_matrix = np.square(np.tril(corr_matrix, -1))
+        objective = np.sum(obj_matrix) / len(results)**2  # want as little correlation
         return objective
 
     def optimize(self):
@@ -140,7 +142,7 @@ class Optimizer:
 
 
 if __name__ == '__main__':
-    abo_optimizer = Optimizer(config_path="./emc_abo/config/emc_config.json", multiprocessing=True)
+    abo_optimizer = Optimizer(config_path="./emc_abo/config/emc_config.json", multiprocessing=False)
     test_objective = abo_optimizer.test_obj_func()
     print(test_objective)
     abo_optimizer.optimize()
