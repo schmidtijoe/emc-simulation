@@ -128,7 +128,6 @@ def main():
     logging.basicConfig(format='%(asctime)s %(levelname)s :: %(name)s --  %(message)s',
                         datefmt='%I:%M:%S', level=level)
     simData = options.SimulationData.from_cmd_args(prog_args)
-
     logging.info("starting simulation")
     logging.info("___ sequence dependent configuration of timing and pulses! ___")
     logging.info("Configuration")
@@ -140,7 +139,7 @@ def main():
             simulate_multi(simParams, simData)
         else:
             simulate_single(simParams, simData, save=True)
-    except AttributeError as e:
+    except Exception as e:
         print(e)
         parser.print_usage()
 
