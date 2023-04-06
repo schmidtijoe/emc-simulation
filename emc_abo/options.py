@@ -15,7 +15,11 @@ class Config(sp.Serializable):
     mpNumCpus: int = sp.field(alias=["-mpn"], default=16)
     optimMaxIter: int = sp.field(alias=["-omi"], default=100)
     optimPopsize: int = sp.field(alias=["-omp"], default=15)
+    optimCrossover: float = sp.field(alias=["-omc"], default=0.5)
+    optimMutation: float = sp.field(alias=["-omm"], default=1.3)
+    optimLambda: float = sp.field(alias=["-oml"], default=0.3)
     useYabox: bool = sp.field(alias=["-yb"], default=False)
+    varyPhase: bool = sp.field(alias=["-p"], default=False)
     maxTime: int = sp.field(alias=["-t"], default=6*60*60)      # 6h maximum compute time
 
     @classmethod
