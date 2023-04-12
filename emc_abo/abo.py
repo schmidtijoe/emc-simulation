@@ -92,51 +92,66 @@ class Optimizer:
             for o1_idx, o2_idx in itertools.product(t2_idxs, t2_idxs):
                 self.weight_matrix[o1_idx, o2_idx] = 0
 
+    def _emc_sim(self, idx):
+        self.emc_tmp_data.set_run_params(*self.param_list[idx])
+        emcAmplitude, _ = emc_sim.simulations.simulate_mese(
+            simParams=self.emc_params,
+            simData=self.emc_tmp_data
+        )
+        return emcAmplitude.emcSignal
+
+    def _calc_l2_diff_loss(self, signal_curves: np.ndarray):
+        # assumed normed curves
+        l2_matrix = signal_curves[:, np.newaxis, :] - signal_curves
+        l2_matrix = 1 - np.linalg.norm(l2_matrix, axis=-1)
+        return l2_matrix
+
+    def _calc_l2_dist_einsum(self, signal_curves: np.ndarray):
+        # assumes normed curves
+        sources = signal_curves[:, np.newaxis, :] - signal_curves
+        en_matrix = np.einsum('ijk, ijk -> ij', sources, sources)
+        return 1.0 - np.sqrt(en_matrix)
+
+    def calc_pearson_loss(self, signal_curves: np.ndarray):
+        corr_matrix = np.corrcoef(signal_curves)
+        # set diagonal and upper half 0, square
+        obj_matrix = np.square(np.tril(corr_matrix, -1))
+        return obj_matrix
+
+    def _calc_objective(self, signal_curves: np.ndarray) -> float:
+        # normalize -> as in dictionary fit
+        norm = np.sqrt(np.einsum('ij, ij -> i', signal_curves, signal_curves))[:, np.newaxis]
+        # objective snr -> want to maximize the norm (minimize negative), i.e possible signal for all curves
+        snr_objective = - np.sum(norm)
+
+        # need to normalize the curves ( as in emc dict fit as well )
+        signal_curves = np.divide(signal_curves, norm, where=norm > 1e-12, out=np.zeros_like(signal_curves))
+        # calculate curve distance loss -> different alternatives available (pearson, l2, dot)
+        loss_matrix = self._calc_l2_dist_einsum(signal_curves)
+        loss_matrix *= self.weight_matrix  # need only half of the matrix
+        # want as little correlation - in a scence we are using in the emc algorithm
+        # objective --> introduce some kind of weighting between snr and correlations, test with little params
+        # -> norm component around 10 times smaller than correlation component
+        corr_objective = np.sum(loss_matrix) / self.num_param_pairs
+
+        return self.opt_lambda * corr_objective + (1 - self.opt_lambda) * snr_objective
+
     def _func_to_optimize(self, x: np.ndarray, verbose=False):
         self.emc_params.sequence.refocusAngle = x[:self.emc_params.sequence.ETL].tolist()
         if self.vary_phase:
             self.emc_params.sequence.refocusPhase = x[self.emc_params.sequence.ETL:].tolist()
 
         signal_curves = np.zeros((self.num_param_pairs, self.emc_params.sequence.ETL))
-
-        def wrap_for_mp(idx):
-            self.emc_tmp_data.set_run_params(*self.param_list[idx])
-            emcAmplitude, _ = emc_sim.simulations.simulate_mese(
-                simParams=self.emc_params,
-                simData=self.emc_tmp_data
-            )
-            return emcAmplitude.emcSignal
-
         logModule.debug("Simulate")
         if verbose:
             for idx in tqdm.trange(self.num_param_pairs, desc="processing sim"):
-                signal_curves[idx] = wrap_for_mp(idx)
+                signal_curves[idx] = self._emc_sim(idx)
         else:
             for idx in range(self.num_param_pairs):
-                signal_curves[idx] = wrap_for_mp(idx)
-        # normalize -> as in dictionary fit
-        norm = np.linalg.norm(signal_curves, axis=-1, keepdims=True)
-        # usually norm in emc  below 0.1 dependent on num samples
-        signal_curves = np.divide(
-            signal_curves,
-            norm,
-            where=norm > 1e-9,
-            out=np.zeros_like(signal_curves)
-        )
-        # objective snr -> want to maximize the norm (minimize negative), i.e possible signal for all curves
-        snr_objective = - np.sum(norm)
-
-        # calculate correlation
-        corr_matrix = np.corrcoef(signal_curves)
-        # set diagonal and upper half 0, square
-        obj_matrix = np.square(np.tril(corr_matrix, -1))
-        # additionally we are not interested in the correlation within a t2 value, between different b1 effectivities
-        obj_matrix *= self.weight_matrix
-        corr_objective = np.sum(obj_matrix) / self.num_param_pairs  # want as little correlation
-        # objective --> introduce some kind of weighting between snr and correlations, test with little params
-        # -> norm component around 10 times smaller than correlation component
-        objective = self.opt_lambda * corr_objective + (1 - self.opt_lambda) * snr_objective
-        return 1e2 * objective      # just nicer tracking in output
+                signal_curves[idx] = self._emc_sim(idx)
+        logModule.debug("Calculate objective")
+        objective = self._calc_objective(signal_curves=signal_curves)
+        return 1e2 * objective  # just nicer tracking in output
 
     def optimize(self):
         popsize = self.opt_popsize

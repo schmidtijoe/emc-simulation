@@ -24,7 +24,7 @@
     "gradientExcitation": -24.77706739958938,
     "durationExcitation": 2600,
     "gradientExcitationRephase": -40.0,
-    "durationExcitationRephase": 800.0,
+    "durationExcitationRephase": 840.0,
     "gradientExcitationVerse1": 0.0,
     "gradientExcitationVerse2": 0.0,
     "durationExcitationVerse1": 0.0,
@@ -57,7 +57,7 @@
     "durationRefocusVerse2": 0.0
   },
   "settings":{
-    "sampleNumber":2000,
+    "sampleNumber":1000,
     "lengthZ":0.01,
     "acquisitionNumber":50,
     "t1_list":[
@@ -66,21 +66,13 @@
     "t2_list":[
       [
         5.0,
-        56.0,
-        10
-      ],
-      [
-        100.0,
-        250.0,
-        100.0
+        16.0,
+        10.0
       ]
     ],
     "b1_list":[
       0.5,
-      0.75,
-      1.0,
-      1.25,
-      1.5
+      0.75
     ],
     "d_list":[
       700.0
