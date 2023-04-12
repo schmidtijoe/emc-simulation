@@ -14,7 +14,7 @@ import numpy as np
 import tqdm
 from scipy import stats
 import matplotlib.pyplot as plt
-
+import time
 logModule = logging.getLogger(__name__)
 
 
@@ -161,54 +161,66 @@ class MleFit(Fit):
         logModule.info("Finished!")
 
 
+def compute_chunks(chunksize: int, data_flat: np.ndarray):
+    finShape = data_flat.shape[:-1]
+    resultT2 = np.zeros(finShape)
+    resultB1 = np.zeros(finShape)
+    num_chunks = int(np.ceil(finShape[0] / chunksize))
+    for chunk_idx in tqdm.trange(num_chunks):
+        start = chunk_idx * chunksize
+        end = np.min([(chunk_idx+1) * chunksize, finShape[0]])
+        chunk = data_flat[start:end]
+        source = np_db[:, np.newaxis, :] - chunk
+        # calculate distance
+        l2_matrix = np.sqrt(np.einsum('ijk, ijk -> ij', source, source))
+        # find minimum along row
+        fit_idx = np.argmin(l2_matrix, axis=0)
+        resultT2[start:end] = pd_db.iloc[fit_idx].t2
+        resultB1[start:end] = pd_db.iloc[fit_idx].b1
+
+    resultT2 = np.reshape(resultT2, data.shape[:-1])
+    resultB1 = np.reshape(resultB1, data.shape[:-1])
+    return resultT2, resultB1
+
+
 if __name__ == '__main__':
     logging.getLogger(__name__)
     dbFile = "/data/pt_np-jschmidt/data/00_phantom_scan_data/pulseq_2022-10-14/emc/database_0p7_fa180_esp10_etl8.pkl"
     inFile = "/data/pt_np-jschmidt/data/00_phantom_scan_data/pulseq_2022-10-14/processed/se_mc_0p7_grappa2_denoised_loraks_recon_mag.nii.gz"
-    pd_db, _ = utils.load_database(dbFile)
-    niiData, niiImg = utils.niiDataLoader(inFile)
+    pd_db, np_db = utils.load_database(dbFile)
+    niiData, niiImg = utils.niiDataLoader(inFile, normalize="")
 
-    # set prior
-    b1_prior = b1input.set_b1_weighting(
-        opts=None,
-        data_slice_shape=niiData.shape[:2],
-        database_pandas=pd_db,
-        b1_weight_factor=0.1
-    )
+    # normalize
+    db_nom = np.sqrt(np.einsum('ij, ij -> i', np_db, np_db))[:, np.newaxis]
+    np_db = np.divide(np_db, db_nom, where=db_nom>1e-12, out=np.zeros_like(np_db))
+    data = niiData[:200, :200, 4]
+    data_nom = np.sqrt(np.einsum('ijk, ijk -> ij', data, data))[:, :, np.newaxis]
+    data = np.divide(data, data_nom, where=data_nom > 1e-12, out=np.zeros_like(data))
+    data_1d = np.reshape(data, [-1, data.shape[-1]])
+    
+    chunksizes = np.linspace(20,4000, 100, dtype=int)
+    times = []
+    for chunk in chunksizes:
+        runs = []
+        for run in range(3):
+            start = time.time()
+            _ = compute_chunks(chunk, data_1d)
+            runs.append(time.time() - start)
+        times.append(np.mean(runs))
 
-    nw = 5
-    b1_width = np.linspace(0.8, 1.4, nw)
-    nwe = 5
-    b1_weights = np.linspace(0, 0.2, nwe)
-
-    wwe_t2 = np.zeros((nw, nwe, *niiData.shape[:2]))
-    wwe_b1 = np.zeros_like(wwe_t2)
-    for w_idx in range(nw):
-        for we_idx in range(nwe):
-            b1_prior.set_weight_width(b1_weights[we_idx], b1_width[w_idx])
-            fitModule = L2Fit(nifti_data=niiData, pandas_database=pd_db, b1_prior=b1_prior)
-            t2, b1 = fitModule.get_maps()
-            wwe_t2[w_idx, we_idx] = t2[:, :, 5]
-            wwe_b1[w_idx, we_idx] = b1[:, :, 5]
-
+    t2_test, _ = compute_chunks(200, data_1d)
+    t2_test = np.reshape(t2_test, data.shape[:-1])
     fig = plt.figure(figsize=(10, 10))
     fig.suptitle(f"T2")
-    gs = fig.add_gridspec(5, 5)
-    for w_idx in range(nw):
-        for we_idx in range(nwe):
-            ax = fig.add_subplot(gs[w_idx, we_idx])
-            ax.axis(False)
-            ax.set_title(f"w:{w_idx},we:{we_idx}")
-            img = ax.imshow(wwe_t2[w_idx, we_idx])
-    plt.show()
+    ax = fig.add_subplot(211)
+    ax.axis(False)
+    img = ax.imshow(t2_test[:, :])
 
-    fig = plt.figure(figsize=(10, 10))
-    fig.suptitle(f"T2")
-    gs = fig.add_gridspec(5, 5)
-    for w_idx in range(nw):
-        for we_idx in range(nwe):
-            ax = fig.add_subplot(gs[w_idx, we_idx])
-            ax.axis(False)
-            ax.set_title(f"w:{w_idx},we:{we_idx}")
-            img = ax.imshow(wwe_b1[w_idx, we_idx])
+    ax = fig.add_subplot(212)
+    ax.set_xlabel("chunksizes")
+    ax.set_ylabel("compute time average of 3 runs")
+    ax.plot(chunksizes, times)
+
+    plt.savefig("chunksize_speed_testing.png")
     plt.show()
+    print("lol")
