@@ -13,3 +13,4 @@ dependencies:
   - nibabel=3.2.2
   - tqdm=4.64.0
   - natsort=7.1.1
+  - nibabel=3.2.2
