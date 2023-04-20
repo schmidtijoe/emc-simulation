@@ -8,6 +8,7 @@ import pathlib as plib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mpc
+
 plt.style.use('ggplot')
 
 # debugging dev
@@ -19,19 +20,26 @@ logModule = logging.getLogger(__name__)
 class DB:
     def __init__(self, pd_dataframe: pd.DataFrame = pd.DataFrame(),
                  config: es_opts.SequenceParams = es_opts.SequenceParams(), name: str = "db_"):
+        # define structure of pandas df
+        self.indices: list = ["emc_signal", "t2", "t1", "b1", "d"]
+        # check indices
+        for ind in self.indices:
+            if not ind in pd_dataframe.columns:
+                err = f"db structure not given. Index {ind} not found. " \
+                      f"Make sure these indices are columns in the dataframe: {self.get_indexes()}"
+                logModule.error(err)
+                raise ValueError(err)
         self.pd_dataframe: pd.DataFrame = pd_dataframe
         self.config: es_opts.SequenceParams = config
         self.np_array: np.ndarray = np.array([*pd_dataframe.emc_signal.to_numpy()])
         self.etl: int = self.np_array.shape[-1]
         self.name: str = name
 
-        self.indexes: list = ["emc_signal", "t2", "t1", "b1", "d"]
-
         # normalize
         self.normalize()
 
     def get_indexes(self):
-        return self.indexes
+        return self.indices
 
     def get_t2_b1_values(self) -> (np.ndarray, np.ndarray):
         return np.unique(self.pd_dataframe.t2), np.unique(self.pd_dataframe.b1)
@@ -75,7 +83,7 @@ class DB:
         ax.set_yticklabels([])
 
         for b in range(curves.shape[1]):
-            ax.hlines(0.2 * (b + 1), 0, x_ax[-1], color=colors[b][-int(t2s.shape[0]/3)], linestyle='dotted')
+            ax.hlines(0.2 * (b + 1), 0, x_ax[-1], color=colors[b][-int(t2s.shape[0] / 3)], linestyle='dotted')
             for a in range(curves.shape[0]):
                 ax.plot(x_ax, 0.2 * (b + 1) + curves[a, b], color=colors[b][a])
 
@@ -138,10 +146,14 @@ class DB:
     def normalize(self):
         arr = self.np_array
         norm = np.linalg.norm(arr, axis=-1, keepdims=True)
-        self.np_array = np.divide(arr, norm, where=norm>1e-12, out=np.zeros_like(arr))
+        self.np_array = np.divide(arr, norm, where=norm > 1e-12, out=np.zeros_like(arr))
 
         for k in range(len(self.pd_dataframe)):
             self.pd_dataframe.at[k, "emc_signal"] = self.np_array[k]
+
+    def get_numpy_array(self) -> np.ndarray:
+        self.normalize()
+        return self.np_array
 
 
 if __name__ == '__main__':
@@ -151,7 +163,6 @@ if __name__ == '__main__':
     db_pd = db_pd.rename(columns={"emcSignal": "emc_signal"})
 
     database = DB(name="test_db", pd_dataframe=db_pd)
-
     database.plot(save="test/")
     database.save(path="test/")
 
