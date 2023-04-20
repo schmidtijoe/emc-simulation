@@ -18,9 +18,9 @@ logModule = logging.getLogger(__name__)
 
 class DB:
     def __init__(self, pd_dataframe: pd.DataFrame = pd.DataFrame(),
-                 config: es_opts.SimulationConfig = es_opts.SimulationConfig(), name: str = "db_"):
+                 config: es_opts.SequenceParams = es_opts.SequenceParams(), name: str = "db_"):
         self.pd_dataframe: pd.DataFrame = pd_dataframe
-        self.config: es_opts.SimulationConfig = config
+        self.config: es_opts.SequenceParams = config
         self.np_array: np.ndarray = np.array([*pd_dataframe.emc_signal.to_numpy()])
         self.etl: int = self.np_array.shape[-1]
         self.name: str = name

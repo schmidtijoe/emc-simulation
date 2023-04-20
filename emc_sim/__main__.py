@@ -1,6 +1,7 @@
 import logging
 import pandas as pd
 from emc_sim import options, simulations, prep
+import emc_db
 import multiprocessing as mp
 import tqdm
 import time
@@ -38,11 +39,13 @@ def simulate_single(
             simData=simData
         )
         emcAmplitude_resultlist.append(emcAmplitude.to_dict())
-    dataBase = pd.DataFrame(emcAmplitude_resultlist)
+    # create DB instance
+    pd_df_database = pd.DataFrame(emcAmplitude_resultlist)
+    database = emc_db.DB(pd_dataframe=pd_df_database, config=simParams.sequence, name=simParams.config.databaseName)
 
     if save:
-        simParams.save_database(database=dataBase)
-    return dataBase, simParams
+        simParams.save_database(database=database)
+    return database, simParams
 
 
 def simulate_multi(
@@ -84,15 +87,16 @@ def simulate_multi(
         results = list(tqdm.tqdm(p.imap(wrapSimulateForMP, mp_lists), total=mp_lists.__len__(), desc="mp pes"))
 
     result_list_of_dict = list(chain(*results))
-    dataBase = pd.DataFrame(result_list_of_dict)
-
+    # create DB instance
+    pd_df_database = pd.DataFrame(result_list_of_dict)
+    database = emc_db.DB(pd_dataframe=pd_df_database, config=simParams.sequence, name=simParams.config.databaseName)
     end = time.time()
 
     logging.info(f'Finished simulation! Total time: {((end - start) / 3600):.2} h \t\t ({((end - start) /60):.1f} min)')
     # df = pd.DataFrame(results)
 
     if save:
-        simParams.save_database(database=dataBase)
+        database.save(path=simParams.config.savePath)
 
 
 def wrapSimulateForMP(args) -> list:

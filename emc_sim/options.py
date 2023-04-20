@@ -56,13 +56,15 @@ class SimulationConfig(Serializable):
     # set path to save database and used config
     savePath: str = "./data"
     # set filename of database
-    saveFile: str = "database_name.pkl"
+    databaseName: str = "database_name"
     # set filepath to external pulse-files (pkl or json)
     pathToExternals: str = "./external"
 
-    # name of external pulse file for excitation - assumed to be rf_pulse_files compatible. See rf_pulse_files to convert from .txt or .pta
+    # name of external pulse file for excitation - assumed to be rf_pulse_files compatible.
+    # See rf_pulse_files to convert from .txt or .pta
     pulseFileExcitation: str = 'slr_fa90_dur2001_lin-phase.pkl'
-    # name of external pulse file for refocussing - assumed to be rf_pulse_files compatible. See rf_pulse_files to convert from .txt or .pta
+    # name of external pulse file for refocussing - assumed to be rf_pulse_files compatible.
+    # See rf_pulse_files to convert from .txt or .pta
     pulseFileRefocus: str = 'slfrank_se_pulse_linear_phase.pkl'
 
     # set flag to visualize pulse profiles and sequence scheme
