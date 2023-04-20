@@ -10,10 +10,6 @@ import matplotlib.cm as cm
 import matplotlib.colors as mpc
 
 plt.style.use('ggplot')
-
-# debugging dev
-import emc_sim.utils as emsu
-
 logModule = logging.getLogger(__name__)
 
 
@@ -157,14 +153,5 @@ class DB:
 
 
 if __name__ == '__main__':
-    db_pd, _ = emsu.load_database(
-        "D:\\Daten\\01_Work\\11_owncloud\\ds_mese_cbs_js\\01_invivo_scan_data\\emc\\database_0p6_fa180_esp12p3.pkl"
-    )
-    db_pd = db_pd.rename(columns={"emcSignal": "emc_signal"})
-
-    database = DB(name="test_db", pd_dataframe=db_pd)
-    database.plot(save="test/")
-    database.save(path="test/")
-
     dl = DB.load("test/test_db_database_file.pkl")
     dl.plot()
