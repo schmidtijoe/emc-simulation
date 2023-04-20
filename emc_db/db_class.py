@@ -86,6 +86,7 @@ class DB:
         norm = mpc.Normalize(vmin=t2_range_ms[0], vmax=t2_range_ms[1])
         ticks = [[], None]
         titles = [f"$B_1$: {b1s[0]:.1f} \t", *[f"{b1s[k]:.1f}" for k in np.arange(1, b1s.shape[0])]]
+        cb = NotImplemented
         for k in range(len(cmaps)):
             cax = fig.add_subplot(gs[1 + k])
             cax.grid(False)
