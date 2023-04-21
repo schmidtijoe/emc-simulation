@@ -1,130 +1,104 @@
-import os
-
-# set maximum number of threads for multiprocessing -> numpy is sometimes greedy,
-# if code is vectorized neatly it might take more resources than wanted by operator
-
-os.environ["OMP_NUM_THREADS"] = "64"  # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = "64"  # export OPENBLAS_NUM_THREADS=4
-os.environ["MKL_NUM_THREADS"] = "64"  # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = "64"  # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = "64"  # export NUMEXPR_NUM_THREADS=6
-
-import numpy as np
-import pandas as pd
+import options
+import plots
+import denoize
+import pathlib as plib
 import logging
-from emc_sim import utils
-from emc_fit import options, fit, denoize, plots, b1input
-from pathlib import Path
+import numpy as np
+import typing
 import nibabel as nib
 
 
-def select_fit_function(fitOpts: options.FitOptions,
-                        niiData: np.ndarray,
-                        pandas_database: pd.DataFrame,
-                        b1_weight: b1input.B1Weight
-                        ) -> (np.ndarray, np.ndarray):
-    fit_mode_opts = {
-        "threshold": fit.Fit,
-        "pearson": fit.PearsonFit,
-        "mle": fit.MleFit,
-        "l2": fit.L2Fit
-    }
-
-    if fit_mode_opts.get(fitOpts.opts.FitMetric) is None:
-        err = f"fit Mode not recognized, choose one of {fit_mode_opts}"
+def load_data(path: typing.Union[str, plib.Path], test_debugging_flag: bool = False) -> (np.ndarray, nib.Nifti1Image):
+    # cast to path
+    if isinstance(path, str):
+        path = plib.Path(path).absolute()
+    # catch file not found
+    if not path.is_file():
+        err = f"given File not found: {path.__str__()}"
         logging.error(err)
-        raise AttributeError(err)
-    return fit_mode_opts.get(fitOpts.opts.FitMetric)(niiData, pandas_database, b1_weight).get_maps()
+        raise ValueError(err)
+    if not '.nii' in path.suffixes:
+        err =f"file no .nii file: {path.__str__()}"
+        logging.error(err)
+        raise ValueError(err)
+    # loading nii image
+    logging.info(f"Loading data from file {path.__str__()}")
+    niiImg = nib.load(path)
+    data = np.array(niiImg.get_fdata())
+    # l2 normalize
+    logging.info("Normalizing data (l2), assuming t in last dimension")
+    norm = np.linalg.norm(data, axis=-1)
+    data = np.divide(data, norm, where=norm>1e-9, out=np.zeros_like(data))
+
+    if test_debugging_flag:
+        # load only subset of data
+        # want data from "middle" of image to not get 0 data for testing
+        idx_half = [int(data.shape[k] / 2) for k in range(2)]
+        data = data[idx_half[0]:idx_half[0] + 10, idx_half[1]:idx_half[1] + 10]
+
+    return data, niiImg
 
 
 def mode_denoize(
-        fitOpts: options.FitOptions,
-        niiData: np.ndarray,
-        niiImg: nib.nifti1.Nifti1Image):
+        fit_opts: options.FitOptions, data_to_fit: np.ndarray, data_img: nib.Nifti1Image) -> np.ndarray:
     # denoizing time series
     logging.info("Denoizing time series")
-    if fitOpts.opts.DenoizeSave:
-        save_plot_path = Path(fitOpts.config.OutputPath).absolute().joinpath(
-            f"{fitOpts.config.NameId}_denoising_efficiency.png"
+    if fit_opts.opts.DenoizeSave:
+        save_plot_path = plib.Path(fit_opts.config.OutputPath).absolute().joinpath(
+            f"{fit_opts.config.NameId}_denoising_efficiency.png"
         ).__str__()
     else:
         save_plot_path = ""
 
-    d_niiData = denoize.denoize_nii_data(
-        data=niiData,
-        num_iterations=fitOpts.opts.DenoizeNumIterations,
-        visualize=fitOpts.opts.Visualize,
-        mpHeadroom=fitOpts.opts.HeadroomMultiprocessing,
+    denoize_algorithm = denoize.MajMinNcChiDenoizer(
+        num_cp_runs=fit_opts.opts.DenoizeNumIterations,
+        visualize=fit_opts.opts.Visualize,
+        mp_headroom=fit_opts.opts.HeadroomMultiprocessing
+    )
+    denoize_algorithm.get_nc_stats(data=data_to_fit)
+    denoize_algorithm.denoize_nii_data(data=data_to_fit)
+    d_niiData = denoize_algorithm.denoize_nii_data(
+        data=data_to_fit,
         save_plot=save_plot_path
     )
 
-    if fitOpts.opts.DenoizeSave:
+    if fit_opts.opts.DenoizeSave:
         logging.info("Writing denoized to .nii")
-        if not fitOpts.config.NameId:
-            name = Path(fitOpts.config.NiiDataPath).absolute()
+        if not fit_opts.config.NameId:
+            name = plib.Path(fit_opts.config.NiiDataPath).absolute()
             for _ in name.suffixes:
                 name = name.with_suffix("")
             name = name.stem
         else:
-            name = fitOpts.config.NameId
-        outPath = Path(fitOpts.config.OutputPath).absolute().joinpath(f"d_{name}.nii")
+            name = fit_opts.config.NameId
+        outPath = plib.Path(fit_opts.config.OutputPath).absolute().joinpath(f"d_{name}.nii")
         logging.info(f"Writing File: {outPath}")
-        d_nii = nib.Nifti1Image(d_niiData, niiImg.affine)
+        d_nii = nib.Nifti1Image(d_niiData, data_img.affine)
         nib.save(d_nii, outPath)
     return d_niiData
 
 
 def mode_fit(
-        fitOpts: options.FitOptions,
-        niiData: np.ndarray,
-        niiImg: nib.nifti1.Nifti1Image):
-    logging.info(f"Loading Database - {fitOpts.config.DatabasePath}")
-    # load database
-    db_pd, _ = utils.load_database(fitOpts.config.DatabasePath, append_zero=True, normalization="l2")
-    # check b1 weighting
-    b1_weight = b1input.set_b1_weighting(
-        data_slice_shape=niiData.shape[:2],
-        database_pandas=db_pd,
-        opts=fitOpts.opts,
-        b1_weight_factor=fitOpts.opts.FitB1WeightingLambda,
-    )
-    # Fit
-    logging.info(f"Fitting: {fitOpts.opts.FitMetric}")
-    t2_map, b1_map = select_fit_function(fitOpts=fitOpts, niiData=niiData, pandas_database=db_pd,
-                                         b1_weight=b1_weight)
-
-    if fitOpts.opts.TestingFlag:
-        return 0
-
-    # cast to ms
-    t2_map *= 1e3
-    fitOpts.saveFit(t2_map, niiImg, f"{fitOpts.config.NameId}_t2")
-    fitOpts.saveFit(b1_map, niiImg, f"{fitOpts.config.NameId}_b1")
+        fit_opts: options.FitOptions, data_to_fit: np.ndarray, data_img: nib.Nifti1Image) -> (np.ndarray, np.ndarray):
+    pass
 
 
 def mode_both(
-        fitOpts: options.FitOptions,
-        niiData: np.ndarray,
-        niiImg: nib.nifti1.Nifti1Image):
-    d_niiData = mode_denoize(fitOpts, niiData, niiImg)
-    mode_fit(fitOpts, d_niiData, niiImg)
+        fit_opts: options.FitOptions, data_to_fit: np.ndarray, data_img: nib.Nifti1Image) -> (np.ndarray, np.ndarray):
+    denoized_data = mode_denoize(fit_opts=fit_opts, data_to_fit=data_to_fit, data_img=data_img)
+    mode_fit(fit_opts=fit_opts, data_to_fit=denoized_data, data_img=data_img)
 
 
-def main(fitOpts: options.FitOptions):
-    dataPath = Path(fitOpts.config.NiiDataPath).absolute()
+def main(fit_opts: options.FitOptions):
+    dataPath = plib.Path(fit_opts.config.NiiDataPath).absolute()
+    niiData, niiImg = load_data(dataPath, test_debugging_flag=True)
 
-    logging.info(f"Loading data - {dataPath}")
-    niiData, niiImg = utils.niiDataLoader(
-        dataPath,
-        test_set=fitOpts.opts.TestingFlag,
-        normalize=""
-    )
     # set values to range 0 - 1000
-    niiData = np.divide(1e3 * niiData, niiData.max())
+    plotData = np.divide(1e3 * niiData, niiData.max())
 
-    if fitOpts.opts.Visualize:
+    if fit_opts.opts.Visualize:
         # plot ortho
-        plots.plot_ortho_view(niiData)
+        plots.plot_ortho_view(plotData)
 
     modeOptions = {
         "Denoize": mode_denoize,
@@ -137,11 +111,11 @@ def main(fitOpts: options.FitOptions):
         "both": mode_both,
         "df": mode_both
     }
-    if modeOptions.get(fitOpts.opts.Mode) is None:
+    if modeOptions.get(fit_opts.opts.Mode) is None:
         err = f"fitting mode not provided choose one of {modeOptions}"
         logging.error(err)
         raise AttributeError(err)
-    modeOptions.get(fitOpts.opts.Mode)(fitOpts, niiData, niiImg)
+    modeOptions.get(fit_opts.opts.Mode)(fit_opts, niiData, niiImg)
 
 
 if __name__ == '__main__':

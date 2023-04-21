@@ -16,96 +16,114 @@ import multiprocessing as mp
 logModule = logging.getLogger(__name__)
 
 
-def op_id(x_input):
-    """ identity operator"""
-    return x_input
+class MajMinNcChiDenoizer:
+    def __init__(self, num_cp_runs: int = 4, use_mp: bool = True, mp_headroom: int = 4,
+                 visualize: bool = True):
+        self.num_channels: int = NotImplemented
+        self.sigma: float = NotImplemented
+        self.gam: float = 7e2      # set from which signal size onwards we approx with gaussian behavior
+        self.eps: float = 1e-5     # for comparing 0
+        self.num_cp_runs: int = num_cp_runs   # set number of runs
+        self.use_mp: bool = use_mp
+        self.mp_headroom: int = mp_headroom
+        self.chambolle_pock_lambda: float = 0.05        # set influence of TV part of algorithm
+        self.chambolle_pock_num_iter: int = 30          # set number of iterations of algorithm per run
+        self.visualize: bool = visualize
 
+    # private
+    @staticmethod
+    def _op_id(x_input):
+        """ identity operator"""
+        return x_input
 
-def _majorante(
-        arg_arr: typing.Union[np.ndarray, float, int],
-        num_channels: int = 18) -> typing.Union[np.ndarray, float]:
-    is_single_val = False
-    eps = 1e-5
-    if isinstance(arg_arr, (float, int)):
-        arg_arr = np.array([arg_arr])
-        is_single_val = True
-    result = np.zeros_like(arg_arr)
+    def _majorante(
+            self, arg_arr: typing.Union[np.ndarray, float, int]) -> typing.Union[np.ndarray, float]:
+        is_single_val = False
 
-    gam = 7e2
-    # for smaller eps result array remains 0
-    # for small enough args but bigger than eps we compute the given formula
-    sel = np.logical_and(eps < arg_arr, gam > arg_arr)
-    result[sel] = np.divide(
-        special.iv(num_channels, arg_arr[sel]),
-        special.iv(num_channels - 1, arg_arr[sel])
-    )
-    # for big args we linearly approach asymptote to 1 @ input arg 30000 (random choice
-    len_asymptote = 3e4
-    start_val = np.divide(
-        special.iv(num_channels, gam),
-        special.iv(num_channels - 1, gam)
-    )
-    sel = arg_arr >= gam
-    result[sel] = start_val + (1.0 - start_val) / len_asymptote * (arg_arr[sel] - gam)
-    if is_single_val:
-        result = result[0]
-    return result
+        if isinstance(arg_arr, (float, int)):
+            arg_arr = np.array([arg_arr])
+            is_single_val = True
+        result = np.zeros_like(arg_arr)
 
+        # for smaller eps result array remains 0
+        # for small enough args but bigger than eps we compute the given formula
+        sel = np.logical_and(self.eps < arg_arr, self.gam > arg_arr)
+        result[sel] = np.divide(
+            special.iv(self.num_channels, arg_arr[sel]),
+            special.iv(self.num_channels - 1, arg_arr[sel])
+        )
+        # for big args we linearly approach asymptote to 1 @ input arg 30000 (random choice
+        len_asymptote = 3e4
+        start_val = np.divide(
+            special.iv(self.num_channels, self.gam),
+            special.iv(self.num_channels - 1, self.gam)
+        )
+        sel = arg_arr >= self.gam
+        result[sel] = start_val + (1.0 - start_val) / len_asymptote * (arg_arr[sel] - self.gam)
+        if is_single_val:
+            result = result[0]
+        return result
 
-def _y_tilde(
-        y_obs: typing.Union[np.ndarray, float, int],
-        x_approx: typing.Union[np.ndarray, float, int],
-        sigma: float = 31.0,
-        num_channels: int = 16) -> typing.Union[np.ndarray, float]:
-    arg = np.multiply(
-        y_obs,
-        x_approx
-    ) / sigma ** 2
-    factor = _majorante(arg, num_channels=num_channels)
-    return y_obs * factor
+    def _y_tilde(
+            self,
+            y_obs: typing.Union[np.ndarray, float, int],
+            x_approx: typing.Union[np.ndarray, float, int]) -> typing.Union[np.ndarray, float]:
+        arg = np.multiply(
+            y_obs,
+            x_approx
+        ) / self.sigma ** 2
+        factor = self._majorante(arg)
+        return y_obs * factor
 
+    def _denoize_wrap_mp(self, args):
+        data, idx = args
+        y = data.copy()
+        x = data.copy()
+        for _ in range(self.num_cp_runs):
+            y = self._y_tilde(y_obs=y, x_approx=x)
+            x = chambollepock.chambolle_pock_tv(
+                y, self.chambolle_pock_lambda, n_it=self.chambolle_pock_num_iter, return_all=False
+            )
+        return idx, x
 
-def denoize_nii_data(data: np.ndarray, num_iterations: int = 4, mpHeadroom: int = 4,
-                     visualize: bool = True, save_plot: str = ""):
-    logModule.info("extract Noise characteristics")
-    ncChi, snrMap = handlers.extract_chi_noise_characteristics_from_nii(
-        niiData=data,
-        visualize=visualize,
-        corner_fraction=15.0
-    )
+    # public
+    def set_channels_sigma(self, num_channels: int, sigma: float):
+        self.num_channels = num_channels
+        self.sigma = sigma
 
-    if visualize:
-        # plot curve selection
-        plots.plot_curve_selection(data=data, noise_mean=ncChi.mean(0))
+    def get_nc_stats(self, data: np.ndarray):
+        logModule.info("extract Noise characteristics")
+        nc_chi, _ = handlers.extract_chi_noise_characteristics_from_nii(
+            niiData=data,
+            visualize=self.visualize,
+            corner_fraction=15.0
+        )
 
-    # majorize nc-chi problem -> becomes least squares problem
-    # can solve this with least squares solver eg: chambollepock algorithm,
-    # get additionally a total variation (TV) term
-    mp_list = []
-    for phase_idx in tqdm.trange(data.shape[1], desc="prepare mp"):
-        mp_list.append([data[:, phase_idx], phase_idx, num_iterations, ncChi])
+        if self.visualize:
+            # plot curve selection
+            plots.plot_curve_selection(data=data, noise_mean=nc_chi.mean(0))
+        self.num_channels = nc_chi.num_channels
+        self.sigma = nc_chi.sigma
 
-    num_cpus = mp.cpu_count() - mpHeadroom
-    logModule.info(f"multiprocessing using {num_cpus} cpus")
-    with mp.Pool(num_cpus) as p:
-        results = list(tqdm.tqdm(p.imap(denoize_wrap_mp, mp_list), total=data.shape[1], desc="mp pes"))
+    def denoize_nii_data(self, data: np.ndarray, save_plot: str = ""):
+        # majorize nc-chi problem -> becomes least squares problem
+        # can solve this with least squares solver eg: chambollepock algorithm,
+        # get additionally a total variation (TV) term
+        mp_list = []
+        for phase_idx in tqdm.trange(data.shape[1], desc="prepare mp"):
+            mp_list.append([data[:, phase_idx], phase_idx])
 
-    d_data = np.zeros_like(data)
-    for mp_idx in tqdm.trange(data.shape[1], desc="join mp"):
-        phase_idx = results[mp_idx][0]
-        d_data[:, phase_idx] = results[mp_idx][1]
+        num_cpus = np.max([4, mp.cpu_count() - self.mp_headroom]) # take at least 4, leave mp Headroom
+        logModule.info(f"multiprocessing using {num_cpus} cpus")
+        with mp.Pool(num_cpus) as p:
+            results = list(tqdm.tqdm(p.imap(self._denoize_wrap_mp, mp_list), total=data.shape[1], desc="mp pes"))
 
-    if visualize:
-        plots.plot_denoized(origData=data, denoizedData=d_data, save=save_plot)
+        d_data = np.zeros_like(data)
+        for mp_idx in tqdm.trange(data.shape[1], desc="join mp"):
+            phase_idx = results[mp_idx][0]
+            d_data[:, phase_idx] = results[mp_idx][1]
 
-    return d_data
+        if self.visualize:
+            plots.plot_denoized(origData=data, denoizedData=d_data, save=save_plot)
 
-
-def denoize_wrap_mp(args):
-    data, idx, num_iterations, ncChi = args
-    y = data.copy()
-    x = data.copy()
-    for _ in range(num_iterations):
-        y = _y_tilde(y_obs=y, x_approx=x, sigma=ncChi.sigma, num_channels=ncChi.num_channels)
-        x = chambollepock.chambolle_pock_tv(y, 0.05, n_it=25, return_all=False)
-    return idx, x
+        return d_data
