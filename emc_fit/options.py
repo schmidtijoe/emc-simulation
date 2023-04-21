@@ -13,7 +13,7 @@ logModule = logging.getLogger(__name__)
 class FileConfiguration(helpers.Serializable):
     ConfigFile: str = field(alias=["-c"], default="")
     NiiDataPath: str = field(alias=["-i"], default="")
-    DatabasePath: str = ""
+    DatabasePath: str = field(alias=["-db"], default="")
     OutputPath: str = field(alias=["-o"], default="")
     NameId: str = ""
 
@@ -29,7 +29,6 @@ class FitParameters(helpers.Serializable):
     FitB1Weighting: bool = True
     FitB1WeightingInput: str = ""
     FitB1WeightingLambda: float = 0.1
-    FitMetric: str = choice("threshold", "pearson", "mle", "l2", default="pearson")
     DenoizeNumIterations: int = 1
     DenoizeSave: bool = True
     Visualize: bool = True
@@ -95,7 +94,7 @@ class FitOptions:
         if not path.stem == "fit":
             path = path.joinpath("fit/")
         path.mkdir(parents=True, exist_ok=True)
-        save_path = path.joinpath(f"{self.opts.FitMetric}_{name}_map.nii")
+        save_path = path.joinpath(f"{name}_map.nii")
         logModule.info(f"Saving File: {save_path}")
 
         niiImg = nib.Nifti1Image(fitArray, niiImg.affine)
