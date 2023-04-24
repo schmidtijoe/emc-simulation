@@ -98,7 +98,7 @@ class Optimizer:
             simParams=self.emc_params,
             simData=self.emc_tmp_data
         )
-        return emcAmplitude.emcSignal
+        return emcAmplitude.emc_signal
 
     def _calc_l2_diff_loss(self, signal_curves: np.ndarray):
         # assumed normed curves
