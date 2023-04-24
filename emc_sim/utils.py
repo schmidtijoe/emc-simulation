@@ -1,7 +1,7 @@
 import json
 import logging
 import numpy as np
-from pathlib import Path
+import pathlib as plib
 import pandas as pd
 import nibabel as nib
 import pickle
@@ -33,7 +33,7 @@ def normalize_array(data_array: np.ndarray, max_factor: float = 1.0,
 
 
 def niiDataLoader(
-        path_to_nii_data: typing.Union[str, Path],
+        path_to_nii_data: typing.Union[str, plib.Path],
         test_set: bool = False, normalize: str = "") -> (
         np.ndarray, nib.nifti1.Nifti1Image):
     """
@@ -43,7 +43,7 @@ def niiDataLoader(
     :param test_set: assumes [x,y,z (,t] data and picks 10x10 subset of x and y
     :return: numpy array of nii data, nib img of data
     """
-    path = Path(path_to_nii_data).absolute()
+    path = plib.Path(path_to_nii_data).absolute()
     if ".nii" in path.suffixes:
         # also works for .nii.gz -> path suffixes include all
         niiImg = nib.load(path)
@@ -59,11 +59,11 @@ def niiDataLoader(
     raise AttributeError(f"input file {path}: type not recognized or no .nii file")
 
 
-def load_database(path_to_file: typing.Union[str, Path], append_zero: bool = True, normalization: str = "l2") -> (
+def load_database(path_to_file: typing.Union[str, plib.Path], append_zero: bool = True, normalization: str = "l2") -> (
         pd.DataFrame, np.ndarray):
     # need standardized way of saving the database: changes here need changes in save fn above
-    if not isinstance(path_to_file, Path):
-        path = Path(path_to_file).absolute()
+    if not isinstance(path_to_file, plib.Path):
+        path = plib.Path(path_to_file).absolute()
     else:
         path = path_to_file.absolute()
     assert path.is_file()
@@ -86,7 +86,7 @@ def load_database(path_to_file: typing.Union[str, Path], append_zero: bool = Tru
         for b1, t1, d in [(b1_val, t1_val, d_val) for b1_val in b1s for t1_val in t1s for d_val in ds]:
             # when normalizing 0 curves will be left unchanged. Data curves are unlikely 0
             temp_row = df.iloc[0].copy()
-            temp_row.emcSignal = np.zeros([len(temp_row.emcSignal)])
+            temp_row.emc_signal = np.zeros([len(temp_row.emc_signal)])
             temp_row.t2 = 1e-3
             temp_row.b1 = b1
             temp_row.t1 = t1
@@ -94,7 +94,7 @@ def load_database(path_to_file: typing.Union[str, Path], append_zero: bool = Tru
             df.loc[len(df.index)] = temp_row
             # still append 0 curves that wont get scaled -> more useful for the pearson fitting
             temp_row = df.iloc[0].copy()
-            temp_row.emcSignal = np.zeros([len(temp_row.emcSignal)])
+            temp_row.emc_signal = np.zeros([len(temp_row.emc_signal)])
             temp_row.t2 = 0.0
             temp_row.b1 = b1
             temp_row.t1 = t1
@@ -107,8 +107,8 @@ def load_database(path_to_file: typing.Union[str, Path], append_zero: bool = Tru
     return df, sim_data_flat
 
 
-def parse_dcm_to_pro(path_to_dcm: typing.Union[str, Path]):
-    path = Path(path_to_dcm).absolute()
+def parse_dcm_to_pro(path_to_dcm: typing.Union[str, plib.Path]):
+    path = plib.Path(path_to_dcm).absolute()
     suffixes = ['.dcm', '.ima']
     if set(suffixes).isdisjoint(path.suffixes):
         err = f"File {path} has unknown Type {path.suffix}; must be one of: {suffixes}"
@@ -146,7 +146,7 @@ def parse_dcm_to_pro(path_to_dcm: typing.Union[str, Path]):
         'ParamLong."SBCSOriginPositionZ': types.SimpleNamespace(line_idx=0, idx=0,
                                                                 str='<ParamLong."SBCSOriginPositionZ">  { }'),
         'tSequenceFileName': types.SimpleNamespace(line_idx=0, idx=0,
-                                                   str='tSequenceFileName	 = 	"Y:\n4\x86\prod\bin\se_mc"'),
+                                                   str='tSequenceFileName	 = 	"Y:\\n4\\x86\\prod\\bin\\se_mc"'),
         'tProtocolName': types.SimpleNamespace(line_idx=0, idx=0, str='tProtocolName	 = 	"Initialized by sequence"')
     }
 
@@ -155,14 +155,14 @@ def parse_dcm_to_pro(path_to_dcm: typing.Union[str, Path]):
     for line_idx in bar:
         # pick line
         line = data_lines[line_idx].decode()
-        # removing leasing/ trailing or double quotes ""
+        # removing leading/ trailing or double quotes ""
         if line.strip().startswith('"'):
-            line = line.replace('"', '', 1)
+            line = line.replace('"', '', 1).strip()
         if line_idx == len(data_lines) - 1:
             line = line.replace(line[line.rfind('"')], '')
         line = line.replace('""', '"')
 
-        # see if line contaings one of those
+        # see if line contains one of those
         for key in subs_dict.keys():
             idx = line.find(key)
             if idx != -1:
@@ -181,9 +181,9 @@ def parse_dcm_to_pro(path_to_dcm: typing.Union[str, Path]):
     path = path.with_suffix('.pro')
     logModule.info(f"Saving File: {path}")
     with open(path, "wb") as s_file:
-        s_file.write(b'\n'.join(data_lines))
+        s_file.write(b'\n'.join(data))
 
 
 if __name__ == '__main__':
-    PATH = "D:\\Daten\\01_Work\\11_owncloud\\ds_mese_cbs_js\\02_postmortem_scan_data\\01\\t2_semc_0p8_93slice\\dcm.dcm"
+    PATH = "/data/pt_np-jschmidt/data/01_in_vivo_scan_data/7T/in_vivo_prot/2023-03-10/11_dcm/S6_semc_0p7_grappa2/1.3.12.2.1107.5.2.0.79025.202303101403441236503660.dcm"
     parse_dcm_to_pro(PATH)

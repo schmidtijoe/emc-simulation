@@ -15,7 +15,7 @@ logModule = logging.getLogger(__name__)
 
 @dataclass
 class SimulationData(Serializable):
-    emcSignal: np.ndarray = np.zeros(10)
+    emc_signal: np.ndarray = np.zeros(10)
     t1: float = 1.5
     t2: float = 0.04
     b1: float = 1.0
@@ -40,7 +40,7 @@ class SimulationData(Serializable):
     @classmethod
     def from_cmd_args(cls, args: ArgumentParser.parse_args):
         simData = SimulationData(args.run)
-        simData.emcSignal = np.zeros(args.sequence.ETL)
+        simData.emc_signal = np.zeros(args.sequence.ETL)
         return simData
 
 

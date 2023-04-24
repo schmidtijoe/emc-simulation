@@ -137,14 +137,14 @@ def simulate_mese(simParams: SimulationParameters, simData: SimulationData) -> (
 
     logModule.debug('Signal array processing fourier')
     imageArray = np.fft.fftshift(np.fft.fft(np.fft.fftshift(tempData.signalArray)))
-    simData.emcSignal = 2 * np.sum(np.abs(imageArray), axis=1) / simParams.settings.acquisitionNumber
+    simData.emc_signal = 2 * np.sum(np.abs(imageArray), axis=1) / simParams.settings.acquisitionNumber
     if simParams.sequence.ETL % 2 > 0:
         # for some reason we get a shift from the fft when used with odd array length.
-        simData.emcSignal = np.roll(simData.emcSignal, 1)
+        simData.emc_signal = np.roll(simData.emc_signal, 1)
     # factor 2 not necessary, stems from Noams version, ultimately want some normalization here!
     simData.time = time.time() - t_start
 
     if simParams.config.debuggingFlag and simParams.config.visualize:
         # for debugging
-        plotting.visualizeSignalResponse(simData.emcSignal, (simData.t2, simData.b1))
+        plotting.visualizeSignalResponse(simData.emc_signal, (simData.t2, simData.b1))
     return simData, simParams

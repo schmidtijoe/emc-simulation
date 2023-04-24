@@ -22,7 +22,8 @@ class DB:
         for ind in self.indices:
             if not ind in pd_dataframe.columns:
                 err = f"db structure not given. Index {ind} not found. " \
-                      f"Make sure these indices are columns in the dataframe: {self.get_indexes()}"
+                      f"Make sure these indices are columns in the dataframe: {self.get_indexes()};" \
+                      f"\nIndices found in db: {pd_dataframe.columns}"
                 logModule.error(err)
                 raise ValueError(err)
         self.pd_dataframe: pd.DataFrame = pd_dataframe
@@ -151,6 +152,32 @@ class DB:
     def get_numpy_array(self) -> np.ndarray:
         self.normalize()
         return self.np_array
+
+    def append_zeros(self):
+        # want 0 lines for fitting noise
+        b1s = self.pd_dataframe.b1.unique().astype(float)
+        t1s = self.pd_dataframe.t1.unique().astype(float)
+        ds = self.pd_dataframe.d.unique().astype(float)
+        for b1, t1, d in [(b1_val, t1_val, d_val) for b1_val in b1s for t1_val in t1s for d_val in ds]:
+            # when normalizing 0 curves will be left unchanged. Data curves are unlikely 0
+            temp_row = self.pd_dataframe.iloc[0].copy()
+            temp_row.emc_signal = np.full(len(temp_row.emc_signal), 1e-5)
+            temp_row.t2 = 1e-3
+            temp_row.b1 = b1
+            temp_row.t1 = t1
+            temp_row.d = d
+            self.pd_dataframe.loc[len(self.pd_dataframe.index)] = temp_row
+            # still append 0 curves that wont get scaled -> useful if normalization leaves signal curve flat
+            temp_row = self.pd_dataframe.iloc[0].copy()
+            temp_row.emc_signal = np.zeros([len(temp_row.emc_signal)])
+            temp_row.t2 = 0.0
+            temp_row.b1 = b1
+            temp_row.t1 = t1
+            temp_row.d = d
+            self.pd_dataframe.loc[len(self.pd_dataframe.index)] = temp_row
+        self.pd_dataframe = self.pd_dataframe.reset_index(drop=True)
+        self.np_array = np.array([*self.pd_dataframe.emc_signal.to_numpy()])
+        self.normalize()
 
 
 if __name__ == '__main__':
