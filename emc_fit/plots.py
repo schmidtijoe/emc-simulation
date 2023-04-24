@@ -38,6 +38,13 @@ def plot_ortho_view(data: np.ndarray):
     echoImg = data
     if data.shape.__len__() > 3:
         echoImg = data[:, :, :, echo]
+    if data.shape.__len__() < 2:
+        err = f"ortho view needs at least 2d data"
+        logModule.error(err)
+        raise AttributeError(err)
+    if data.shape.__len__() < 3:
+        echoImg = data[:, :, np.newaxis]
+
     shape = np.array([*echoImg.shape]) / 2
     x, y, z = shape.astype(int)
 

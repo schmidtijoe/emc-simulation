@@ -1,34 +1,38 @@
 import numpy as np
-from simple_parsing import ArgumentParser, helpers, choice, field
-from dataclasses import dataclass
-from pathlib import Path
+import simple_parsing as sp
+import dataclasses as dc
+import pathlib as plib
 import json
 import nibabel as nib
 import logging
+import typing
 
 logModule = logging.getLogger(__name__)
 
 
-@dataclass
-class FileConfiguration(helpers.Serializable):
-    ConfigFile: str = field(alias=["-c"], default="")
-    NiiDataPath: str = field(alias=["-i"], default="")
-    DatabasePath: str = field(alias=["-db"], default="")
-    OutputPath: str = field(alias=["-o"], default="")
+@dc.dataclass
+class FileConfiguration(sp.helpers.Serializable):
+    ConfigFile: str = sp.field(alias=["-c"], default="")
+    NiiDataPath: str = sp.field(alias=["-i"], default="")
+    DatabasePath: str = sp.field(alias=["-db"], default="")
+    OutputPath: str = sp.field(alias=["-o"], default="")
     NameId: str = ""
+    Multiprocessing: bool = True
+    HeadroomMultiprocessing: int = 16
 
     def __post_init__(self):
-        op = Path(self.OutputPath).absolute()
+        op = plib.Path(self.OutputPath).absolute()
         if not op.is_dir():
             self.OutputPath = op.parent.__str__()
 
 
-@dataclass
-class FitParameters(helpers.Serializable):
-    Mode: str = choice("Denoize", "d", "Fit", "f", "Both", "df", default="Both")
+@dc.dataclass
+class FitParameters(sp.helpers.Serializable):
+    Mode: str = sp.choice("Denoize", "d", "Fit", "f", "Both", "df", default="Both")
     FitB1Weighting: bool = True
     FitB1WeightingInput: str = ""
     FitB1WeightingLambda: float = 0.1
+    FitB1PriorVoxelDims: typing.List = dc.field(default_factory=lambda: [0.7, 0.7, 0.7])
     DenoizeNumIterations: int = 1
     DenoizeSave: bool = True
     Visualize: bool = True
@@ -36,7 +40,7 @@ class FitParameters(helpers.Serializable):
     TestingFlag: bool = False
 
 
-@dataclass
+@dc.dataclass
 class FitOptions:
     config: FileConfiguration = FileConfiguration()
     opts: FitParameters = FitParameters()
@@ -50,7 +54,7 @@ class FitOptions:
         return cls(config=config, opts=opts)
 
     @classmethod
-    def fromCmdLine(cls, args: ArgumentParser.parse_args):
+    def fromCmdLine(cls, args: sp.ArgumentParser.parse_args):
         """
         Configuration File overwrites cmd line input!
         :param args: parsed arguments from cmd
@@ -69,7 +73,7 @@ class FitOptions:
                 non_def[key] = value
         # read in config file if provided
         if fitSet.config.ConfigFile:
-            path = Path(fitSet.config.ConfigFile).absolute()
+            path = plib.Path(fitSet.config.ConfigFile).absolute()
             fitSet = FitOptions.load(path)
         # fill in non defaults, aka additional provided
         for key, value in non_def.items():
@@ -78,8 +82,8 @@ class FitOptions:
             else:
                 fitSet.opts.__setattr__(key, value)
         # catch empty outut path and use input path
-        if not fitSet.config.OutputPath or fitSet.config.OutputPath == Path(__file__).absolute().parent.__str__():
-            fitSet.config.__setattr__("OutputPath", Path(fitSet.config.NiiDataPath).absolute().parent.__str__())
+        if not fitSet.config.OutputPath or fitSet.config.OutputPath == plib.Path(__file__).absolute().parent.__str__():
+            fitSet.config.__setattr__("OutputPath", plib.Path(fitSet.config.NiiDataPath).absolute().parent.__str__())
         return fitSet
 
     def saveFit(self, fitArray: np.ndarray, niiImg: nib.Nifti1Image, name: str):
@@ -90,7 +94,7 @@ class FitOptions:
             fitArray = np.reshape(fitArray, niiImg.shape)
 
         # save
-        path = Path(self.config.OutputPath).absolute()
+        path = plib.Path(self.config.OutputPath).absolute()
         if not path.stem == "fit":
             path = path.joinpath("fit/")
         path.mkdir(parents=True, exist_ok=True)
@@ -101,13 +105,13 @@ class FitOptions:
         nib.save(niiImg, save_path)
 
 
-def createCmdLineParser() -> (ArgumentParser, ArgumentParser.parse_args):
+def createCmdLineParser() -> (sp.ArgumentParser, sp.ArgumentParser.parse_args):
     """
     Build the parser for arguments
     Parse the input arguments.
     :return: parser, parsed arguments
     """
-    parser = ArgumentParser(prog='emc_fit')
+    parser = sp.ArgumentParser(prog='emc_fit')
     parser.add_arguments(FileConfiguration, dest="config")
     parser.add_arguments(FitParameters, dest="opts")
     args = parser.parse_args()

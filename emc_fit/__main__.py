@@ -1,11 +1,10 @@
-import options
-import plots
-import denoize
+from emc_fit import options, plots, denoize, fit
 import pathlib as plib
 import logging
 import numpy as np
 import typing
 import nibabel as nib
+import emc_db
 
 
 def load_data(path: typing.Union[str, plib.Path], test_debugging_flag: bool = False) -> (np.ndarray, nib.Nifti1Image):
@@ -17,8 +16,8 @@ def load_data(path: typing.Union[str, plib.Path], test_debugging_flag: bool = Fa
         err = f"given File not found: {path.__str__()}"
         logging.error(err)
         raise ValueError(err)
-    if not '.nii' in path.suffixes:
-        err =f"file no .nii file: {path.__str__()}"
+    if '.nii' not in path.suffixes:
+        err = f"file no .nii file: {path.__str__()}"
         logging.error(err)
         raise ValueError(err)
     # loading nii image
@@ -27,8 +26,8 @@ def load_data(path: typing.Union[str, plib.Path], test_debugging_flag: bool = Fa
     data = np.array(niiImg.get_fdata())
     # l2 normalize
     logging.info("Normalizing data (l2), assuming t in last dimension")
-    norm = np.linalg.norm(data, axis=-1)
-    data = np.divide(data, norm, where=norm>1e-9, out=np.zeros_like(data))
+    norm = np.linalg.norm(data, axis=-1, keepdims=True)
+    data = np.divide(data, norm, where=norm > 1e-9, out=np.zeros_like(data))
 
     if test_debugging_flag:
         # load only subset of data
@@ -80,7 +79,56 @@ def mode_denoize(
 
 def mode_fit(
         fit_opts: options.FitOptions, data_to_fit: np.ndarray, data_img: nib.Nifti1Image) -> (np.ndarray, np.ndarray):
-    pass
+    db_path = plib.Path(fit_opts.config.DatabasePath).absolute()
+    if not db_path.is_file():
+        err = f"given database file {db_path.__str__()} does not exist. exiting..."
+        logging.error(err)
+        raise FileNotFoundError(err)
+    logging.info(f"loading database: {db_path.__str__()}")
+    db = emc_db.DB.load(db_path)
+    logging.info("setting up fit")
+    fit_algorithm = fit.Fitter(nifti_data=data_to_fit, database=db,
+                               mp_processing=fit_opts.config.Multiprocessing,
+                               mp_headroom=fit_opts.config.HeadroomMultiprocessing)
+    if fit_opts.opts.FitB1Weighting:
+        # want to use B1 weighting in the fit
+        b1_path = plib.Path(fit_opts.opts.FitB1WeightingInput).absolute()
+        if b1_path.is_file():
+            # we have a b1 input file
+            logging.info(f"using B1 input file: {b1_path.__str__()}")
+            # load file
+            b1_map = nib.load(b1_path)
+            fit_algorithm.set_b1_weight(b1_map=b1_map.get_fdata(), b1_lambda=fit_opts.opts.FitB1WeightingLambda)
+        else:
+            # use spherical prior
+            logging.info(f"no b1 file specified, using spherical prior")
+            fit_algorithm.set_b1_simple_prior(
+                b1_lambda=fit_opts.opts.FitB1WeightingLambda,
+                voxel_dims_mm=np.array(fit_opts.opts.FitB1PriorVoxelDims))
+    # fitting
+    t2_map, b1_map = fit_algorithm.get_maps()
+    r2_map = np.divide(1, 1e-3 * t2_map, where=t2_map>1e-5, out = np.zeros_like(t2_map))
+
+    # saving
+    save_path = plib.Path(fit_opts.config.OutputPath).absolute()
+    if save_path.suffixes:
+        # catch if filename given
+        save_path = save_path.parent
+    # create folder ifn exist
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    save_nii_file(t2_map, f"{fit_opts.config.NameId}_t2", save_path, data_img.affine)
+    save_nii_file(r2_map, f"{fit_opts.config.NameId}_r2", save_path, data_img.affine)
+    save_nii_file(b1_map, f"{fit_opts.config.NameId}_b1", save_path, data_img.affine)
+
+    logging.info(f"finished")
+
+
+def save_nii_file(data: np.ndarray, name: str, path: typing.Union[str, plib.Path], affine: nib.Nifti1Image.affine):
+    img_save = path.joinpath(f"{name}_map").with_suffix(".nii")
+    logging.info(f"write file: {img_save}")
+    _img = nib.Nifti1Image(data, affine)
+    nib.save(_img, img_save)
 
 
 def mode_both(
@@ -91,7 +139,7 @@ def mode_both(
 
 def main(fit_opts: options.FitOptions):
     dataPath = plib.Path(fit_opts.config.NiiDataPath).absolute()
-    niiData, niiImg = load_data(dataPath, test_debugging_flag=True)
+    niiData, niiImg = load_data(dataPath, test_debugging_flag=fit_opts.opts.TestingFlag)
 
     # set values to range 0 - 1000
     plotData = np.divide(1e3 * niiData, niiData.max())
@@ -126,6 +174,6 @@ if __name__ == '__main__':
                         datefmt='%I:%M:%S', level=logging.INFO)
     try:
         main(opts)
-    except AttributeError or AssertionError or ValueError as err:
-        logging.error(err)
+    except Exception as e:
+        logging.error(e)
         parser.print_usage()

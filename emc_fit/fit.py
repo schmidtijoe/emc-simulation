@@ -5,14 +5,15 @@ from emc_db import DB
 import tqdm
 import logging
 import time
+import multiprocessing as mp
 
 logModule = logging.getLogger(__name__)
 
 
 class Fitter:
-    def __init__(self, nifti_data: np.ndarray, database: emc_db.DB):
+    def __init__(self, nifti_data: np.ndarray, database: emc_db.DB,
+                 mp_processing: bool = False, mp_headroom: int = 16):
         logModule.info(f"emc fit setup")
-
         # check dims
         if nifti_data.shape.__len__() < 2:
             err = "Nifti Input Data assumed to be at least 2D: [voxels, echoes] but found 1D, exiting..."
@@ -52,6 +53,13 @@ class Fitter:
 
         self.slice_dim = self.nii_data.shape[-2]
 
+        # multiprocessing
+        self.mp_processing: bool = mp_processing
+        # take at most the number of slices as thread number
+        self.num_cpus: int = np.min([mp.cpu_count() - mp_headroom, self.nii_shape[-2]])
+        # take at least 4
+        self.num_cpus = np.max([self.num_cpus, 4])
+
     # public
     def reset(self):
         self.t2_map = np.zeros(self.nii_data.shape[:-1])
@@ -63,7 +71,7 @@ class Fitter:
             # if we still have 0 array for t2 map
             self._fit()
         # retrieve arrays -> squeeze possible additional axes
-        t2 = np.squeeze(self.t2_map)
+        t2 = np.squeeze(self.t2_map) * 1e3
         b1 = np.squeeze(self.b1_map)
         return t2, b1
 
@@ -91,11 +99,11 @@ class Fitter:
         for x_idx in range(self.nii_shape[0]):
             for y_idx in range(self.nii_shape[1]):
                 for z_idx in range(self.nii_shape[2]):
+
                     vector = np.sqrt(
                         np.square(ax_dim[0][x_idx]) + np.square(ax_dim[1][y_idx]) + np.square(ax_dim[2][z_idx])
                     )
                     b1_prior[x_idx, y_idx, z_idx] = g_shape[g_ax > vector][0]
-
         self.set_b1_weight(b1_map=b1_prior, b1_lambda=b1_lambda, plot=plot)
 
     # private
@@ -145,38 +153,80 @@ class Fitter:
             raise ValueError(err)
         return b1_map
 
+    # we want to give as little as possible -> if we distribute the class we need to copz all data to the threads
+    # but we are enough with the slices
+    @staticmethod
+    def _fit_calc(args):
+        slice_idx, data_slice, b1_slice, database_arr, b1_weight_lambda, b1_db_entries = args
+        # assumes data slice [x, y, t], b1 [x, y], database [t2b1, t], b1_db_entries [b1]
+        data = np.reshape(data_slice, (-1, data_slice.shape[-1]))
+        # L2 norm difference to database
+        # data dim [xy, t] ---  db dim [t2b1, t]
+        dot_matrix = np.einsum('ik, jk -> ij', data, database_arr)
+        # dot matrix [xy, db_t2b1]
+        # total variation b1?
+        if b1_weight_lambda > 1e-9:
+            # B1 prior
+            # we want to weight the database curves with b1 close to prior more
+            # need to calculate penalty for db curves dependent on b1 value
+            # data dim [xy, b1] ---  db_b1 dim [idx, b1]
+            data_b1 = np.reshape(b1_slice, -1)[:, np.newaxis]
+            db_b1 = b1_db_entries[np.newaxis, :]
+            b1_matrix = np.sqrt(np.square(data_b1 - db_b1))
+            b1_matrix = 0.5 * (np.max(b1_matrix) - b1_matrix)
+        else:
+            b1_matrix = np.zeros_like(dot_matrix)
+        # square lambda for more decent ranging (otherwise effect of 0.1 already quite drastic)
+        max_matrix = (1.0 - b1_weight_lambda ** 2) * dot_matrix + b1_weight_lambda ** 2 * b1_matrix
+        fit_indices = np.argmax(max_matrix, axis=-1)
+        return fit_indices, slice_idx
+
     def _fit(self):
         logModule.info("Fitting")
         # slice wise
         t_start = time.time()
 
-        dim_x, dim_y = self.nii_shape[:2]
-        for slice_idx in tqdm.trange(self.slice_dim, desc="processing"):
-            data = np.reshape(self.nii_data[:, :, slice_idx], (-1, self.nii_shape[-1]))
-            # L2 norm difference to database
-            # data dim [xy, t] ---  db dim [t2b1, t]
-            dot_matrix = np.einsum('ik, jk -> ij', data, self.database.np_array)
-            # dot matrix [xy, db_t2b1]
-            if self.b1_weight_lambda > 1e-9:
-                # B1 prior
-                # we want to weight the database curves with b1 close to prior more
-                # need to calculate penalty for db curves dependent on b1 value
-                # data dim [xy, b1] ---  db_b1 dim [idx, b1]
-                data_b1 = np.reshape(self.b1_weight_input[:, :, slice_idx], -1)[:, np.newaxis]
-                db_b1 = self.database.pd_dataframe.b1.to_numpy()[np.newaxis, :]
-                b1_matrix = np.sqrt(np.square(data_b1 - db_b1))
-                b1_matrix = 0.5 * (np.max(b1_matrix) - b1_matrix)
-            else:
-                b1_matrix = np.zeros_like(dot_matrix)
-            # square lambda for more decent ranging (otherwise effect of 0.1 already quite drastic)
-            max_matrix = (1.0 - self.b1_weight_lambda ** 2) * dot_matrix + self.b1_weight_lambda ** 2 * b1_matrix
-            fit_indices = np.argmax(max_matrix, axis=-1)
+        _, b1s = self.database.get_t2_b1_values()
+        # insert 0 curves
+        self.database.append_zeros()
 
+        if self.mp_processing:
+            # use multiprocessing
+            mp_list = [(
+                slice_idx,
+                self.nii_data[:, :, slice_idx],
+                self.b1_weight_input[:, :, slice_idx],
+                self.database.np_array,
+                self.b1_weight_lambda,
+                b1s) for slice_idx in range(self.nii_shape[-2])
+            ]
+            logModule.info(f"multiprocessing using {self.num_cpus} threads")
+            with mp.Pool(self.num_cpus) as p:
+                results = list(tqdm.tqdm(p.imap(self._fit_calc, mp_list),
+                                         total=mp_list.__len__(), desc="mp fit"))
+
+        else:
+            results = []
+            logModule.info("single thread processing")
+            for slice_idx in tqdm.trange(self.slice_dim, desc="processing"):
+                results.append(self._fit_calc((
+                    slice_idx,
+                    self.nii_data[:, :, slice_idx],
+                    self.b1_weight_input[:, :, slice_idx],
+                    self.database.np_array,
+                    self.b1_weight_lambda,
+                    b1s))
+                )
+
+        for result_item in results:
+            fit_indices, slice_idx = result_item
             t2s = self.database.pd_dataframe.loc[self.database.pd_dataframe.index[fit_indices]].t2.to_numpy()
             b1s = self.database.pd_dataframe.loc[self.database.pd_dataframe.index[fit_indices]].b1.to_numpy()
-            self.t2_map[:, :, slice_idx] = np.reshape(t2s, (dim_x, dim_y))
-            self.b1_map[:, :, slice_idx] = np.reshape(b1s, (dim_x, dim_y))
-        print(f"total processing time, slice wise: {time.time() - t_start:.3f} s")
+            self.t2_map[:, :, slice_idx] = np.reshape(t2s, (self.nii_shape[0], self.nii_shape[1]))
+            self.b1_map[:, :, slice_idx] = np.reshape(b1s, (self.nii_shape[0], self.nii_shape[1]))
+
+        t_total = time.time() - t_start
+        print(f"total processing time, slice wise: {t_total:.3f} s ({t_total / 60:.1f} min)")
 
 
 if __name__ == '__main__':
