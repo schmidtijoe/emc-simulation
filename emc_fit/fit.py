@@ -89,21 +89,17 @@ class Fitter:
         sets a simple B1 prior -> spherical shape with b1_max in middle, falling to ~b1_min at edges
         z_middle sets the midpoint for the maximum along z dimension, half wavelength roughly headsize ~ 25 cm
         """
-        b1_prior = np.zeros(self.nii_shape[:-1])
-        g_ax = np.linspace(0, 0.3, 10000)
-        g_shape = b1_min + (b1_max - b1_min) * np.cos(g_ax * np.pi * 4 / sphere_width)
-        g_shape = np.clip(g_shape, b1_min, b1_max)
         half_ax = [1e-3 * voxel_dims_mm[dim_idx] * self.nii_shape[dim_idx] / 2 for dim_idx in range(3)]
-        ax_dim = [np.linspace(-half_ax[k], half_ax[k], self.nii_shape[k]) for k in range(3)]
-        ax_dim[2] = ax_dim[2] + z_middle_shift
-        for x_idx in range(self.nii_shape[0]):
-            for y_idx in range(self.nii_shape[1]):
-                for z_idx in range(self.nii_shape[2]):
+        ax_dims = [np.linspace(-half_ax[k], half_ax[k], self.nii_shape[k]) for k in range(3)]
+        ax_dims[2] += z_middle_shift
 
-                    vector = np.sqrt(
-                        np.square(ax_dim[0][x_idx]) + np.square(ax_dim[1][y_idx]) + np.square(ax_dim[2][z_idx])
-                    )
-                    b1_prior[x_idx, y_idx, z_idx] = g_shape[g_ax > vector][0]
+        dimensions = np.sqrt(
+            np.square(ax_dims[0][:, np.newaxis, np.newaxis]) +
+            np.square(ax_dims[1][np.newaxis, :, np.newaxis]) +
+            np.square(ax_dims[2][np.newaxis, np.newaxis, :])
+        )
+        b1_prior = b1_min + (b1_max - b1_min) * np.cos(dimensions * np.pi * 5.7 / sphere_width)
+        b1_prior = np.clip(b1_prior, b1_min, b1_max)
         self.set_b1_weight(b1_map=b1_prior, b1_lambda=b1_lambda, plot=plot)
 
     # private
@@ -112,7 +108,7 @@ class Fitter:
 
     def _plot_ortho_nii_data(self):
         # take first echo
-        self.set_b1_simple_prior(self.nii_data[:, :, :, 0])
+        self._plot_ortho_view(self.nii_data[:, :, :, 0])
 
     @staticmethod
     def _plot_ortho_view(arr_3d: np.ndarray):
@@ -121,6 +117,7 @@ class Fitter:
             logModule.error(err)
             raise ValueError
         dim = np.array([*arr_3d.shape]) / 2
+        dim = dim.astype(int)
         fig = plt.figure(figsize=(10, 3))
         gs = fig.add_gridspec(1, 4, width_ratios=[15, 15, 15, 1])
         img = None
@@ -186,9 +183,11 @@ class Fitter:
         # slice wise
         t_start = time.time()
 
-        _, b1s = self.database.get_t2_b1_values()
         # insert 0 curves
         self.database.append_zeros()
+
+        # get b1 values at each db curve
+        b1s = self.database.pd_dataframe.b1.to_numpy()
 
         if self.mp_processing:
             # use multiprocessing

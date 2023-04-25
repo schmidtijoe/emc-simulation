@@ -57,9 +57,15 @@ class NcChi:
         return self.num_channels, self.sigma
 
     def fit_noise(self, noise_values):
-        params = chi.fit(noise_values, floc=0)
+        # normalize nosie vals
+        data = noise_values.copy()
+        norm = np.linalg.norm(data)
+        data = np.divide(data, norm)
+        params = chi.fit(data, 20, floc=0)
+        if params[0] < 4:
+            params = chi.fit(data, f0=4, floc=0)
         self.set_channels(int(round(params[0] / 2, 0)))
-        self.set_sigma(params[2])
+        self.set_sigma(norm*params[2])
 
     def pdf(self, x: typing.Union[int, float, np.ndarray],
             amplitude: typing.Union[int, float, np.ndarray]) -> np.ndarray:

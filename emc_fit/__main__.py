@@ -24,10 +24,6 @@ def load_data(path: typing.Union[str, plib.Path], test_debugging_flag: bool = Fa
     logging.info(f"Loading data from file {path.__str__()}")
     niiImg = nib.load(path)
     data = np.array(niiImg.get_fdata())
-    # l2 normalize
-    logging.info("Normalizing data (l2), assuming t in last dimension")
-    norm = np.linalg.norm(data, axis=-1, keepdims=True)
-    data = np.divide(data, norm, where=norm > 1e-9, out=np.zeros_like(data))
 
     if test_debugging_flag:
         # load only subset of data
@@ -50,16 +46,21 @@ def mode_denoize(
         save_plot_path = ""
 
     denoize_algorithm = denoize.MajMinNcChiDenoizer(
-        num_cp_runs=fit_opts.opts.DenoizeNumIterations,
+        num_cp_runs=fit_opts.opts.DenoizeMaxNumIterations,
         visualize=fit_opts.opts.Visualize,
-        mp_headroom=fit_opts.opts.HeadroomMultiprocessing
+        mp_headroom=fit_opts.opts.HeadroomMultiprocessing,
+        single_iteration=True
     )
-    denoize_algorithm.get_nc_stats(data=data_to_fit)
-    denoize_algorithm.denoize_nii_data(data=data_to_fit)
-    d_niiData = denoize_algorithm.denoize_nii_data(
-        data=data_to_fit,
-        save_plot=save_plot_path
-    )
+    for num_iter in range(fit_opts.opts.DenoizeMaxNumIterations):
+        denoize_algorithm.get_nc_stats(data=data_to_fit)
+        if denoize_algorithm.check_low_noise(data_max=np.max(data_to_fit) / 5):
+            break
+        logging.info(f"denoize iteration: {num_iter + 1}")
+        d_niiData = denoize_algorithm.denoize_nii_data(
+            data=data_to_fit,
+            save_plot=save_plot_path
+        )
+        data_to_fit = d_niiData
 
     if fit_opts.opts.DenoizeSave:
         logging.info("Writing denoized to .nii")

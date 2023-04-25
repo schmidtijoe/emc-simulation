@@ -73,8 +73,12 @@ def extract_chi_noise_characteristics_from_nii(niiData: np.ndarray,
 
     if visualize:
         # build histogramm
-        maxhist = int(noiseArray.max())
-        hist, h_bins = np.histogram(noiseArray, bins=maxhist, range=(0, maxhist), density=True)
+        maxhist = np.max(noiseArray)
+        bins = maxhist
+        while bins < 1:
+            bins *= 10
+        bins = int(bins)
+        hist, h_bins = np.histogram(noiseArray, bins=bins, range=(0, maxhist), density=True)
         h_bins = (h_bins[1] - h_bins[0]) / 2 + h_bins[:-1]
         hist[0] = 0
         chi_fit = dist_ncChi.pdf(h_bins, 0)

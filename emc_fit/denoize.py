@@ -18,7 +18,8 @@ logModule = logging.getLogger(__name__)
 
 class MajMinNcChiDenoizer:
     def __init__(self, num_cp_runs: int = 4, use_mp: bool = True, mp_headroom: int = 4,
-                 visualize: bool = True):
+                 visualize: bool = True, single_iteration: bool = True):
+        self.single_iteration: bool = single_iteration
         self.num_channels: int = NotImplemented
         self.sigma: float = NotImplemented
         self.gam: float = 7e2      # set from which signal size onwards we approx with gaussian behavior
@@ -27,8 +28,9 @@ class MajMinNcChiDenoizer:
         self.use_mp: bool = use_mp
         self.mp_headroom: int = mp_headroom
         self.chambolle_pock_lambda: float = 0.05        # set influence of TV part of algorithm
-        self.chambolle_pock_num_iter: int = 30          # set number of iterations of algorithm per run
+        self.chambolle_pock_num_iter: int = 25          # set number of iterations of algorithm per run
         self.visualize: bool = visualize
+        self.nc_chi_mean_noise: float = -1.0
 
     # private
     @staticmethod
@@ -79,7 +81,11 @@ class MajMinNcChiDenoizer:
         data, idx = args
         y = data.copy()
         x = data.copy()
-        for _ in range(self.num_cp_runs):
+        if self.single_iteration:
+            iterate = 1
+        else:
+            iterate = self.num_cp_runs
+        for _ in range(iterate):
             y = self._y_tilde(y_obs=y, x_approx=x)
             x = chambollepock.chambolle_pock_tv(
                 y, self.chambolle_pock_lambda, n_it=self.chambolle_pock_num_iter, return_all=False
@@ -96,7 +102,7 @@ class MajMinNcChiDenoizer:
         nc_chi, _ = handlers.extract_chi_noise_characteristics_from_nii(
             niiData=data,
             visualize=self.visualize,
-            corner_fraction=15.0
+            corner_fraction=12.0
         )
 
         if self.visualize:
@@ -104,6 +110,7 @@ class MajMinNcChiDenoizer:
             plots.plot_curve_selection(data=data, noise_mean=nc_chi.mean(0))
         self.num_channels = nc_chi.num_channels
         self.sigma = nc_chi.sigma
+        self.nc_chi_mean_noise = nc_chi.mean(0)
 
     def denoize_nii_data(self, data: np.ndarray, save_plot: str = ""):
         # majorize nc-chi problem -> becomes least squares problem
@@ -113,7 +120,7 @@ class MajMinNcChiDenoizer:
         for phase_idx in tqdm.trange(data.shape[1], desc="prepare mp"):
             mp_list.append([data[:, phase_idx], phase_idx])
 
-        num_cpus = np.max([4, mp.cpu_count() - self.mp_headroom]) # take at least 4, leave mp Headroom
+        num_cpus = np.max([4, mp.cpu_count() - self.mp_headroom])  # take at least 4, leave mp Headroom
         logModule.info(f"multiprocessing using {num_cpus} cpus")
         with mp.Pool(num_cpus) as p:
             results = list(tqdm.tqdm(p.imap(self._denoize_wrap_mp, mp_list), total=data.shape[1], desc="mp pes"))
@@ -127,3 +134,8 @@ class MajMinNcChiDenoizer:
             plots.plot_denoized(origData=data, denoizedData=d_data, save=save_plot)
 
         return d_data
+
+    def check_low_noise(self, data_max: float, snr: float = 20.0) -> bool:
+        acceptable_noise = data_max / snr
+        current_noise_level = self.nc_chi_mean_noise
+        return current_noise_level < acceptable_noise

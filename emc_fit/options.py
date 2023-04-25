@@ -33,7 +33,7 @@ class FitParameters(sp.helpers.Serializable):
     FitB1WeightingInput: str = ""
     FitB1WeightingLambda: float = 0.1
     FitB1PriorVoxelDims: typing.List = dc.field(default_factory=lambda: [0.7, 0.7, 0.7])
-    DenoizeNumIterations: int = 1
+    DenoizeMaxNumIterations: int = 1
     DenoizeSave: bool = True
     Visualize: bool = True
     HeadroomMultiprocessing: int = 20
