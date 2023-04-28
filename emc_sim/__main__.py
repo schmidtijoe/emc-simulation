@@ -1,4 +1,6 @@
 import logging
+
+import numpy as np
 import pandas as pd
 from emc_sim import options, simulations, prep
 import emc_db
@@ -78,8 +80,11 @@ def simulate_multi(
     logging.info("Simulate")
     # divide lists in as many parts as we have processes available (cpus)
     param_list = simParams.settings.get_complete_param_list()
-    mp_lists = [(simParams, simData, param_list[i::simParams.config.mpNumCpus])
-                for i in range(simParams.config.mpNumCpus)]
+    # use chunksize per cpu. this needs some speed testing its a blend between shipping data and computing!
+    # choose oder of around 10 for now
+
+    params_split = np.array_split(param_list, simParams.config.mpNumCpus * 10)
+    mp_lists = [(simParams, simData, params_split[i]) for i in range(params_split.__len__())]
 
     start = time.time()
 

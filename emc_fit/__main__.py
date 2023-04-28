@@ -46,11 +46,12 @@ def mode_denoize(
         save_plot_path = ""
 
     denoize_algorithm = denoize.MajMinNcChiDenoizer(
-        num_cp_runs=fit_opts.opts.DenoizeMaxNumIterations,
+        max_num_runs=fit_opts.opts.DenoizeMaxNumIterations,
         visualize=fit_opts.opts.Visualize,
-        mp_headroom=fit_opts.opts.HeadroomMultiprocessing,
+        mp_headroom=fit_opts.config.HeadroomMultiprocessing,
         single_iteration=True
     )
+    d_niiData = np.zeros_like(data_to_fit)
     for num_iter in range(fit_opts.opts.DenoizeMaxNumIterations):
         denoize_algorithm.get_nc_stats(data=data_to_fit)
         if denoize_algorithm.check_low_noise(data_max=np.max(data_to_fit) / 5):
@@ -88,7 +89,7 @@ def mode_fit(
     logging.info(f"loading database: {db_path.__str__()}")
     db = emc_db.DB.load(db_path)
     logging.info("setting up fit")
-    fit_algorithm = fit.Fitter(nifti_data=data_to_fit, database=db,
+    fit_algorithm = fit.EmcFit(nifti_data=data_to_fit, database=db,
                                mp_processing=fit_opts.config.Multiprocessing,
                                mp_headroom=fit_opts.config.HeadroomMultiprocessing)
     if fit_opts.opts.FitB1Weighting:

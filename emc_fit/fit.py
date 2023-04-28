@@ -10,7 +10,7 @@ import multiprocessing as mp
 logModule = logging.getLogger(__name__)
 
 
-class Fitter:
+class EmcFit:
     def __init__(self, nifti_data: np.ndarray, database: emc_db.DB,
                  mp_processing: bool = False, mp_headroom: int = 16):
         logModule.info(f"emc fit setup")
@@ -51,12 +51,13 @@ class Fitter:
         self.b1_weight_input: np.ndarray = np.ones_like(nifti_data)
         self.b1_weight_lambda: float = 0.0
 
-        self.slice_dim = self.nii_data.shape[-2]
+        # usually freq or phase encode biggest dimension. probably best for skaling calculations
+        self.first_dim = self.nii_data.shape[0]
 
         # multiprocessing
         self.mp_processing: bool = mp_processing
         # take at most the number of slices as thread number
-        self.num_cpus: int = np.min([mp.cpu_count() - mp_headroom, self.nii_shape[-2]])
+        self.num_cpus: int = np.min([mp.cpu_count() - mp_headroom, self.first_dim])
         # take at least 4
         self.num_cpus = np.max([self.num_cpus, 4])
 
@@ -148,6 +149,13 @@ class Fitter:
                   f"Resample data and try again"
             logModule.error(err)
             raise ValueError(err)
+        if np.max(b1_map) > 2:
+            logModule.info(f"B1 input is supposed to be a fraction with 1.0 meaning perfect B1 transmit."
+                           f"Found value range ({np.min(b1_map):.2f}, {np.max(b1_map):.2f}) trying to solve")
+            while np.max(b1_map) > 2:
+                b1_map /= 10
+            b1_map = np.clip(b1_map, 0, 2)
+            logModule.info(f"B1 adopted to range ({np.min(b1_map):.2f}, {np.max(b1_map):.2f})")
         return b1_map
 
     # we want to give as little as possible -> if we distribute the class we need to copz all data to the threads
@@ -193,11 +201,11 @@ class Fitter:
             # use multiprocessing
             mp_list = [(
                 slice_idx,
-                self.nii_data[:, :, slice_idx],
-                self.b1_weight_input[:, :, slice_idx],
+                self.nii_data[slice_idx, :, :],
+                self.b1_weight_input[slice_idx, :, :],
                 self.database.np_array,
                 self.b1_weight_lambda,
-                b1s) for slice_idx in range(self.nii_shape[-2])
+                b1s) for slice_idx in range(self.nii_shape[0])
             ]
             logModule.info(f"multiprocessing using {self.num_cpus} threads")
             with mp.Pool(self.num_cpus) as p:
@@ -207,11 +215,11 @@ class Fitter:
         else:
             results = []
             logModule.info("single thread processing")
-            for slice_idx in tqdm.trange(self.slice_dim, desc="processing"):
+            for slice_idx in tqdm.trange(self.first_dim, desc="processing"):
                 results.append(self._fit_calc((
                     slice_idx,
-                    self.nii_data[:, :, slice_idx],
-                    self.b1_weight_input[:, :, slice_idx],
+                    self.nii_data[slice_idx, :, :],
+                    self.b1_weight_input[slice_idx, :, :],
                     self.database.np_array,
                     self.b1_weight_lambda,
                     b1s))
@@ -221,8 +229,8 @@ class Fitter:
             fit_indices, slice_idx = result_item
             t2s = self.database.pd_dataframe.loc[self.database.pd_dataframe.index[fit_indices]].t2.to_numpy()
             b1s = self.database.pd_dataframe.loc[self.database.pd_dataframe.index[fit_indices]].b1.to_numpy()
-            self.t2_map[:, :, slice_idx] = np.reshape(t2s, (self.nii_shape[0], self.nii_shape[1]))
-            self.b1_map[:, :, slice_idx] = np.reshape(b1s, (self.nii_shape[0], self.nii_shape[1]))
+            self.t2_map[slice_idx, :, :] = np.reshape(t2s, (self.nii_shape[1], self.nii_shape[2]))
+            self.b1_map[slice_idx, :, :] = np.reshape(b1s, (self.nii_shape[1], self.nii_shape[2]))
 
         t_total = time.time() - t_start
         print(f"total processing time, slice wise: {t_total:.3f} s ({t_total / 60:.1f} min)")
@@ -232,7 +240,7 @@ if __name__ == '__main__':
     nii_data = np.square(np.random.random(size=(100, 100, 10, 16)))
     db = emc_db.DB.load("D:\\Daten\\01_Work\\03_code\\emc-simulation-python\\emc_db\\test\\test_db_database_file.pkl")
 
-    fit_test = Fitter(nifti_data=nii_data, database=db)
+    fit_test = EmcFit(nifti_data=nii_data, database=db)
     fit_test.set_b1_simple_prior(voxel_dims_mm=np.array([2.1, 2.1, 2.1]), b1_lambda=0.1)
     t2_map_l0p1, b1_map_l0p1 = fit_test.get_maps()
 

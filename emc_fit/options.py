@@ -36,7 +36,6 @@ class FitParameters(sp.helpers.Serializable):
     DenoizeMaxNumIterations: int = 1
     DenoizeSave: bool = True
     Visualize: bool = True
-    HeadroomMultiprocessing: int = 20
     TestingFlag: bool = False
 
 

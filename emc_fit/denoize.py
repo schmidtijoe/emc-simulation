@@ -17,20 +17,21 @@ logModule = logging.getLogger(__name__)
 
 
 class MajMinNcChiDenoizer:
-    def __init__(self, num_cp_runs: int = 4, use_mp: bool = True, mp_headroom: int = 4,
+    def __init__(self, max_num_runs: int = 4, use_mp: bool = True, mp_headroom: int = 4,
                  visualize: bool = True, single_iteration: bool = True):
         self.single_iteration: bool = single_iteration
         self.num_channels: int = NotImplemented
         self.sigma: float = NotImplemented
         self.gam: float = 7e2      # set from which signal size onwards we approx with gaussian behavior
         self.eps: float = 1e-5     # for comparing 0
-        self.num_cp_runs: int = num_cp_runs   # set number of runs
+        self.num_cp_runs: int = max_num_runs   # set number of runs
         self.use_mp: bool = use_mp
         self.mp_headroom: int = mp_headroom
         self.chambolle_pock_lambda: float = 0.05        # set influence of TV part of algorithm
         self.chambolle_pock_num_iter: int = 25          # set number of iterations of algorithm per run
         self.visualize: bool = visualize
         self.nc_chi_mean_noise: float = -1.0
+        self.first_run: bool = True
 
     # private
     @staticmethod
@@ -105,9 +106,10 @@ class MajMinNcChiDenoizer:
             corner_fraction=12.0
         )
 
-        if self.visualize:
+        if self.visualize and self.first_run:
             # plot curve selection
             plots.plot_curve_selection(data=data, noise_mean=nc_chi.mean(0))
+            self.first_run = False
         self.num_channels = nc_chi.num_channels
         self.sigma = nc_chi.sigma
         self.nc_chi_mean_noise = nc_chi.mean(0)
