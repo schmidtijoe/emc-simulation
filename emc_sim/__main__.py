@@ -74,8 +74,8 @@ def simulate_multi(
 
     logging.info(f"Number of CPUs to use: {simParams.config.mpNumCpus}")
     logging.info(f'projected time for {simParams.settings.total_num_sim} curves: '
-                 f'{simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\t\t'
-                 f'({simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)')
+                 f'{2.5 * simData.time * simParams.settings.total_num_sim / 3600 / simParams.config.mpNumCpus:.2f} h\t\t'
+                 f'({2.5 * simData.time * simParams.settings.total_num_sim / 60 / simParams.config.mpNumCpus:.1f} min)')
 
     logging.info("Simulate")
     # divide lists in as many parts as we have processes available (cpus)
