@@ -30,7 +30,10 @@ class DB:
         self.config: es_opts.SequenceParams = config
         self.np_array: np.ndarray = np.array([*pd_dataframe.emc_signal.to_numpy()])
         self.etl: int = self.np_array.shape[-1]
-        self.name: str = name
+        # extract only name in case filename given
+        name = plib.Path(name).absolute()
+        name = name.stem
+        self.name: str = name.__str__()
 
         # normalize
         self.normalize()
