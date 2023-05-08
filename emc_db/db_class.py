@@ -83,9 +83,10 @@ class DB:
         ax.set_yticklabels([])
 
         for b in range(curves.shape[1]):
-            ax.hlines(0.2 * (b + 1), 0, x_ax[-1], color=colors[b][-int(t2s.shape[0] / 3)], linestyle='dotted')
+            ax.hlines(0.2 * (b + 1), 0, x_ax[-1], color=colors[b][-int(t2s.shape[0] / 3)],
+                      linestyle='dotted', zorder=curves.shape[1]-b+1)
             for a in range(curves.shape[0]):
-                ax.plot(x_ax, 0.2 * (b + 1) + curves[a, b], color=colors[b][a])
+                ax.plot(x_ax, 0.2 * (b + 1) + curves[a, b], color=colors[b][a], zorder=curves.shape[1]-b+1)
 
         norm = mpc.Normalize(vmin=t2_range_ms[0], vmax=t2_range_ms[1])
         ticks = [[], None]
