@@ -29,15 +29,20 @@ class Optimizer:
             self.emc_params: emc_sim.options.SimulationParameters = emc_sim.options.SimulationParameters()
         self.emc_tmp_data: emc_sim.options.SimulationData = emc_sim.options.SimulationData()
         self.vary_phase: bool = config.varyPhase
+        self.vary_spoil: bool = config.varySpoilGrad
 
         # bounds and initial guess
-        self.bounds_fa: tuple = (60.0, 180.0)
+        self.bounds_fa: tuple = (60.0, 150.0)
         self.bounds_phase: tuple = (-180.0, 180.0)
         self.bounds: list = [*[self.bounds_fa] * self.emc_params.sequence.ETL]
         self.rf_0: np.ndarray = np.zeros(self.emc_params.sequence.ETL)
         if self.vary_phase:
             self.bounds.extend([*[self.bounds_phase] * self.emc_params.sequence.ETL])
-            self.rf_0: np.ndarray = np.zeros(2 * self.emc_params.sequence.ETL)
+            self.rf_0 = np.zeros(2 * self.emc_params.sequence.ETL)
+        if self.vary_spoil:
+            self.bounds.extend([(0.0, -40.0)])
+            self.rf_0 = np.zeros(self.rf_0.shape[0]+1)
+            self.rf_0[-1] = self.emc_params.sequence.gradientCrush
         self.rf_0[:self.emc_params.sequence.ETL] = self.emc_params.sequence.refocusAngle
 
         # for multiprocessing setup
@@ -100,19 +105,22 @@ class Optimizer:
         )
         return emcAmplitude.emc_signal
 
-    def _calc_l2_diff_loss(self, signal_curves: np.ndarray):
+    @staticmethod
+    def _calc_l2_diff_loss(signal_curves: np.ndarray):
         # assumed normed curves
         l2_matrix = signal_curves[:, np.newaxis, :] - signal_curves
         l2_matrix = 1 - np.linalg.norm(l2_matrix, axis=-1)
         return l2_matrix
 
-    def _calc_l2_dist_einsum(self, signal_curves: np.ndarray):
+    @staticmethod
+    def _calc_l2_dist_einsum(signal_curves: np.ndarray):
         # assumes normed curves
         sources = signal_curves[:, np.newaxis, :] - signal_curves
         en_matrix = np.einsum('ijk, ijk -> ij', sources, sources)
         return 1.0 - np.sqrt(en_matrix)
 
-    def calc_pearson_loss(self, signal_curves: np.ndarray):
+    @staticmethod
+    def calc_pearson_loss(signal_curves: np.ndarray):
         corr_matrix = np.corrcoef(signal_curves)
         # set diagonal and upper half 0, square
         obj_matrix = np.square(np.tril(corr_matrix, -1))
@@ -137,6 +145,9 @@ class Optimizer:
         return self.opt_lambda * corr_objective + (1 - self.opt_lambda) * snr_objective
 
     def _func_to_optimize(self, x: np.ndarray, verbose=False):
+        if self.vary_spoil:
+            self.emc_params.sequence.gradientCrush = x[-1]
+            x = x[:-1]
         self.emc_params.sequence.refocusAngle = x[:self.emc_params.sequence.ETL].tolist()
         if self.vary_phase:
             self.emc_params.sequence.refocusPhase = x[self.emc_params.sequence.ETL:].tolist()

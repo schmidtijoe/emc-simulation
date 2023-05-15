@@ -20,6 +20,7 @@ class Config(sp.Serializable):
     optimLambda: float = sp.field(alias=["-oml"], default=0.3)
     useYabox: bool = sp.field(alias=["-yb"], default=False)
     varyPhase: bool = sp.field(alias=["-p"], default=False)
+    varySpoilGrad: bool = sp.field(alias=["-spg"], default=False)
     maxTime: int = sp.field(alias=["-t"], default=6*60*60)      # 6h maximum compute time
 
     @classmethod
