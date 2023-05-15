@@ -51,7 +51,7 @@ def mode_denoize(
         mp_headroom=fit_opts.config.HeadroomMultiprocessing,
         single_iteration=True
     )
-    d_niiData = np.zeros_like(data_to_fit)
+    d_niiData = data_to_fit.copy()
     for num_iter in range(fit_opts.opts.DenoizeMaxNumIterations):
         denoize_algorithm.get_nc_stats(data=data_to_fit)
         if denoize_algorithm.check_low_noise(data_max=np.max(data_to_fit) / 5):
