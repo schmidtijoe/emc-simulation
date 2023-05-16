@@ -32,17 +32,18 @@ class Optimizer:
         self.vary_spoil: bool = config.varySpoilGrad
 
         # bounds and initial guess
-        self.bounds_fa: tuple = (60.0, 150.0)
+        self.bounds_fa: tuple = (60.0, 160.0)
         self.bounds_phase: tuple = (-180.0, 180.0)
+        self.bounds_spoil: tuple = (-40.0, -5.0)
         self.bounds: list = [*[self.bounds_fa] * self.emc_params.sequence.ETL]
         self.rf_0: np.ndarray = np.zeros(self.emc_params.sequence.ETL)
         if self.vary_phase:
             self.bounds.extend([*[self.bounds_phase] * self.emc_params.sequence.ETL])
             self.rf_0 = np.zeros(2 * self.emc_params.sequence.ETL)
         if self.vary_spoil:
-            self.bounds.extend([(0.0, -40.0)])
-            self.rf_0 = np.zeros(self.rf_0.shape[0]+1)
-            self.rf_0[-1] = self.emc_params.sequence.gradientCrush
+            self.bounds.extend([*[self.bounds_spoil] * self.emc_params.sequence.ETL])
+            self.rf_0 = np.zeros(self.rf_0.shape[0] + self.emc_params.sequence.ETL)
+            self.rf_0[-self.emc_params.sequence.ETL:] = self.emc_params.sequence.gradientCrush
         self.rf_0[:self.emc_params.sequence.ETL] = self.emc_params.sequence.refocusAngle
 
         # for multiprocessing setup
@@ -146,8 +147,8 @@ class Optimizer:
 
     def _func_to_optimize(self, x: np.ndarray, verbose=False):
         if self.vary_spoil:
-            self.emc_params.sequence.gradientCrush = x[-1]
-            x = x[:-1]
+            self.emc_params.sequence.gradientCrush = x[-self.emc_params.sequence.ETL:].tolist()
+            x = x[:-self.emc_params.sequence.ETL]
         self.emc_params.sequence.refocusAngle = x[:self.emc_params.sequence.ETL].tolist()
         if self.vary_phase:
             self.emc_params.sequence.refocusPhase = x[self.emc_params.sequence.ETL:].tolist()
