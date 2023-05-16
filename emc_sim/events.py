@@ -57,7 +57,7 @@ class GradPulse:
         else:
             path = plib.Path(params.config.pathToExternals).absolute().joinpath(params.config.pulseFileRefocus)
             sim_temp_data.excitation_flag = False
-            grad_crush_rephase = params.sequence.gradientCrush
+            grad_crush_rephase = params.sequence.gradientCrush[pulse_number - 1]
             duration_crush_rephase = params.sequence.durationCrush
             duration_pulse = params.sequence.durationRefocus
         # change to rf_pulse_files object here
@@ -111,7 +111,7 @@ class GradPulse:
             # For timing reasons there is no crusher before the first refocusing pulse in the sequence.
             # We move one into the rephase space of the excitation
             gradient_excitation_crush = np.divide(
-                params.sequence.gradientCrush * params.sequence.durationCrush,
+                params.sequence.gradientCrush[0] * params.sequence.durationCrush,
                 params.sequence.durationExcitationRephase
             )
 

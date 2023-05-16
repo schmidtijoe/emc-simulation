@@ -1,3 +1,5 @@
+import typing
+
 import numpy as np
 from dataclasses import dataclass, field
 from simple_parsing import Serializable, ArgumentParser, choice
@@ -134,7 +136,7 @@ class SequenceParams(Serializable):
     # Refocussing, duration of pulse [us]
     durationRefocus: float = 3584.0
 
-    gradientCrush: float = -38.70  # [mT/m], crusher
+    gradientCrush: List = field(default_factory=lambda: [-38.7])  # [mT/m], crusher
     durationCrush: float = 1000.0  # [us], crusher
 
     gradientRefocusVerse1: float = -22.0  # [mT/m], verse
@@ -163,6 +165,9 @@ class SequenceParams(Serializable):
             # fill up list with last value
             self.refocusAngle.append(self.refocusAngle[-1])
             self.refocusPhase.append(self.refocusPhase[-1])
+        while self.gradientCrush.__len__() < self.ETL:
+            # fill up list with last value
+            self.gradientCrush.append(self.gradientCrush[-1])
 
 
 @dataclass
