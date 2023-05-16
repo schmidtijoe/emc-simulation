@@ -276,12 +276,14 @@ class Optimizer:
 
     def save(self, path):
         rf_fa = self.result.x[:self.emc_params.sequence.ETL]
-        rf_phase = self.result.x[self.emc_params.sequence.ETL:]
-        grad_spoil = self.result.x[-1]
-        if not self.vary_phase:
+        if self.vary_phase:
+            rf_phase = self.result.x[self.emc_params.sequence.ETL:2*self.emc_params.sequence.ETL]
+        else:
             # if phase wasn't varied copy original setting
             rf_phase = self.emc_params.sequence.refocusPhase
-        if not self.vary_spoil:
+        if self.vary_spoil:
+            grad_spoil = self.result.x[-self.emc_params.sequence.ETL:]
+        else:
             # if spoiling wasn't varied copy original setting
             grad_spoil = self.emc_params.sequence.gradientCrush
         save_dict = {
