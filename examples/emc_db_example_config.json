@@ -1,9 +1,9 @@
 {
   "config":{
-    "configFile":"/data/pt_np-jschmidt/data/01_in_vivo_scan_data/7T/in_vivo_prot/2023-04-25/emc/database_mod_semc_0p7_config.json",
-    "savePath":"/data/pt_np-jschmidt/data/01_in_vivo_scan_data/7T/in_vivo_prot/2023-04-25/emc/",
-    "databaseName":"database_mod_semc_0p7_fa160",
-    "pathToExternals":"/data/pt_np-jschmidt/code/emc-simulation/rf_pulse_files/pulses/",
+    "configFile":"examples/emc_db_example_config.json",
+    "savePath":"examples/emc_db_example_config.json",
+    "databaseName":"database_example",
+    "pathToExternals":"rf_pulse_files/pulses/",
     "pulseFileExcitation":"semc_rfpf.pkl",
     "pulseFileRefocus":"semc_rfpf.pkl",
     "visualize":true,
