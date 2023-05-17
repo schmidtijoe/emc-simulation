@@ -286,11 +286,13 @@ class Optimizer:
         else:
             # if spoiling wasn't varied copy original setting
             grad_spoil = self.emc_params.sequence.gradientCrush
+        grad_spoil_moment = np.array(grad_spoil) * 1e-3 * self.emc_params.sequence.durationCrush * 1e-6 * self.emc_params.sequence.gammaHz
         save_dict = {
             "function_value": self.history_objective[-1],
             "opt_rf_fa": rf_fa,
             "opt_rf_phase": rf_phase,
             "opt_grad_spoil": grad_spoil,
+            "opt_grad_spoil_moment": grad_spoil_moment.tolist(),
             "history_objective": self.history_objective,
             "history_time": self.history_time
         }
